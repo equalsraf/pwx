@@ -1,0 +1,20 @@
+[package]
+name = "pwx"
+version = "0.0.0"
+build = "build.rs"
+
+[dependencies]
+rust-crypto = "*"
+libc = "*"
+matches = "*"
+uuid = "*"
+docopt = "*"
+rustc-serialize = "*"
+
+[build-dependencies]
+gcc = "*"
+
+[[bin]]
+name = "pwx"
+doc = false
+
