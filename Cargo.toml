@@ -10,6 +10,7 @@ matches = "*"
 uuid = "*"
 docopt = "*"
 rustc-serialize = "*"
+rpassword = "*"
 
 [build-dependencies]
 gcc = "*"

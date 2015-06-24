@@ -2,9 +2,10 @@ extern crate pwx;
 extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
+extern crate rpassword;
 
 use pwx::{Pwx,PwxIterator};
-use std::io::Write;
+use std::io::{Write,stdout,stderr};
 use std::process::exit;
 use std::path::Path;
 use docopt::Docopt;
@@ -56,8 +57,16 @@ fn real_main() -> i32 {
         return 0;
     }
 
-    let mut p = match Pwx::open(Path::new(&args.arg_file), "test") {
-        Err(f) => usage!(-1, f),
+    // Get password from terminal
+    print!("Password: ");
+    stdout().flush().unwrap();
+    let password = rpassword::read_password().unwrap();
+
+    let mut p = match Pwx::open(Path::new(&args.arg_file), &password) {
+        Err(f) => {
+            let _ = writeln!(stderr(), "Error: {}", f);
+            exit(-1);
+        },
         Ok(p) => p,
     };
 
