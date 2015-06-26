@@ -28,7 +28,7 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 macro_rules! usage {
     ($code:expr, $err:expr) => {{
         let _ = writeln!(std::io::stderr(), "{}\n{}", $err, USAGE);
-        exit($code);
+        return $code;
     }};
 }
 
@@ -45,7 +45,7 @@ struct Args {
     flag_version: bool,
 }
 
-fn main() {
+fn real_main() -> i32 {
 
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
@@ -53,7 +53,7 @@ fn main() {
 
     if args.flag_version {
         println!("pwx {}", VERSION);
-        return;
+        return 0;
     }
 
     let mut p = match Pwx::open(Path::new(&args.arg_file), "test") {
@@ -62,7 +62,7 @@ fn main() {
     };
 
     if !p.is_authentic() {
-        exit(-1);
+        return -1;
     }
 
     if args.cmd_list {
@@ -102,5 +102,15 @@ fn main() {
             }
         }
     }
+
+    return 0
+}
+
+// Rust set_exit_status cannot be used yet, the only way to
+// set an exit code to exit using exit(code) so we wrap the
+// main function like this
+fn main() {
+    let exit_code = real_main();
+    exit(exit_code);
 }
 
