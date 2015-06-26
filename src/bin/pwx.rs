@@ -10,9 +10,10 @@ use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
+use pwx::util::fuzzy_eq;
 
 const USAGE: &'static str = "
-Usage: pwx [options] [<file>] list
+Usage: pwx [options] [<file>] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [<filter>]
        pwx [options] [<file>] info
        pwx [options] [<file>] get <uuid> <name>
        pwx [options] [<file>] set <uuid <name> <val>
@@ -22,6 +23,12 @@ Options:
     -h, --help          Show this help message
     -v, --version       Show pwx version
     --pass-interactive  Read password from console
+
+Filters:
+    -R, --url URL
+    -G, --group GROUP
+    -U, --username USERNAME
+    -T, --title TITLE
 ";
 
 // Get pkg version at compile time
@@ -40,6 +47,11 @@ struct Args {
     arg_name: String,
     arg_val: String,
     arg_uuid: String,
+    arg_filter: String,
+    flag_url: String,
+    flag_group: String,
+    flag_username: String,
+    flag_title: String,
     cmd_list: bool,
     cmd_set: bool,
     cmd_get: bool,
@@ -74,6 +86,65 @@ fn get_password(args: &Args) -> String {
     }
 
     get_password_from_console()
+}
+
+/** Filters for the 'list' command */
+struct ListFilter<'a> {
+    m_url: bool,
+    m_group: bool,
+    m_username: bool,
+    m_title: bool,
+    m_filter: bool,
+    args: &'a Args,
+}
+
+impl<'a> ListFilter<'a> {
+    fn new(args: &Args) -> ListFilter {
+        ListFilter {
+            m_group: args.flag_group.is_empty(),
+            m_url: args.flag_url.is_empty(),
+            m_username: args.flag_username.is_empty(),
+            m_title: args.flag_title.is_empty(),
+            m_filter: args.arg_filter.is_empty(),
+            args: args,
+        }
+    }
+
+    /** Process field */
+    fn process(&mut self, typ: u8, val: &[u8]) {
+        match typ {
+            0x02 => {
+                self.m_group = self.m_group || fuzzy_eq(&self.args.flag_group, &String::from_utf8_lossy(val.as_ref()));
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0x03 => {
+                self.m_title = self.m_title || fuzzy_eq(&self.args.flag_title, &String::from_utf8_lossy(val.as_ref()));
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0x04 => {
+                self.m_username = self.m_username || fuzzy_eq(&self.args.flag_username, &String::from_utf8_lossy(val.as_ref()));
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0x05 => {
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0x0d => {
+                self.m_url = self.m_url || fuzzy_eq(&self.args.flag_url, &String::from_utf8_lossy(val.as_ref()));
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0x14 => {
+                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+            },
+            0xff => *self = ListFilter::new(self.args),
+            _ => (),
+        }
+
+    }
+
+    /** Returns true if the record matches the filter */
+    fn matched(&self) -> bool {
+        self.m_group && self.m_url && self.m_username && self.m_title && self.m_filter
+    }
 }
 
 fn real_main() -> i32 {
@@ -132,19 +203,27 @@ fn real_main() -> i32 {
         let mut title = String::new();
         let mut username = String::new();
 
+        let mut filter = ListFilter::new(&args);
         for (typ,val) in fields {
             match typ {
                 0x01 => uuid = Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string(),
-                0x03 => title = String::from_utf8_lossy(val.as_ref()).into_owned(),
-                0x04 => username = String::from_utf8_lossy(val.as_ref()).into_owned(),
+                0x03 => {
+                    title = String::from_utf8_lossy(val.as_ref()).into_owned();
+                },
+                0x04 => {
+                    username = String::from_utf8_lossy(val.as_ref()).into_owned();
+                },
                 0xff => {
-                    println!("{} {}[{}]", uuid, title, username);
-                    uuid = String::new();
-                    title = String::new();
-                    username = String::new();
+                    if filter.matched() {
+                        println!("{} {}[{}]", uuid, title, username);
+                        uuid = String::new();
+                        title = String::new();
+                        username = String::new();
+                    }
                 }
                 _ => (),
             }
+            filter.process(typ, &val);
         }
     } else if args.cmd_info {
 

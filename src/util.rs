@@ -2,6 +2,7 @@
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use super::SHA256_SIZE;
+use std::ascii::AsciiExt;
 
 /**
  * Generate the SHA-256 value of a password after several rounds of stretching.
@@ -38,9 +39,27 @@ pub fn from_le32(b: &[u8]) -> Option<u32> {
             + ((b[0] as u32)))
 }
 
+/**
+ * Matching function for filters - this behaves as
+ * a case insensitive substring find. Except it
+ * returns false if any of the arguments is empty.
+ */
+pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
+{
+    if needle.is_empty() || hay.is_empty() {
+        return false;
+    }
+
+    // FIXME: unicode?
+    let h = hay.to_ascii_lowercase();
+    let n = needle.to_ascii_lowercase();
+    h.find(&n).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::from_le32;
+    use super::fuzzy_eq;
 
     #[test]
     fn test_from_le32() {
@@ -57,5 +76,13 @@ mod tests {
         assert_eq!(from_le32(b"\xff\xff\xff"), None);
     }
     
+    #[test]
+    fn test_fuzzy_eq() {
+        assert_eq!(fuzzy_eq("", ""), false);
+        assert_eq!(fuzzy_eq("needle", ""), false);
+        assert_eq!(fuzzy_eq("", "hay"), false);
+        assert_eq!(fuzzy_eq("Needle", "needle"), true);
+        assert_eq!(fuzzy_eq("needle", "http://nEedle"), true);
+    }
 }
 

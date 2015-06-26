@@ -18,7 +18,7 @@ use std::cmp::min;
 mod twofish;
 use twofish::Key;
 
-mod util;
+pub mod util;
 use util::{from_le32,stretch_pass};
 
 const PREAMBLE_SIZE:usize = 152;
