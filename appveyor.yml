@@ -1,0 +1,16 @@
+install:
+# Need Mingw to build C bits
+- SET PATH=%PATH%;C:\MinGW\bin
+# rust-crypto needs these flags when using 32bit Mingw
+- SET CFLAGS=-mmmx -msse
+- ps: Start-FileDownload http://static.rust-lang.org/dist/$env:PLATFORM -FileName rust.exe
+- rust.exe /VERYSILENT /NORESTART /DIR="C:\Program Files\Rust"
+- SET PATH=%PATH%;C:\Program Files\Rust\bin
+- rustc -vV
+- cargo -V
+platform:
+- rust-1.1.0-i686-pc-windows-gnu.exe
+# To build against multiple rust versions add them here
+build: false
+test_script:
+- cargo test
