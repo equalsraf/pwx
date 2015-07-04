@@ -227,7 +227,7 @@ impl Pwx {
     /**
      * Open Database and check the given password
      */
-    pub fn open(path: &Path, password: &str) -> Result<Pwx, Fail> {
+    pub fn open(path: &Path, password: &[u8]) -> Result<Pwx, Fail> {
         let mut file = match File::open(path) {
             Err(why) => return Err(Fail::UnableToOpen(why.description().to_owned())),
             Ok(file) => file,
@@ -258,7 +258,7 @@ impl Pwx {
         // the password
         let (h_pline, rest) = rest.split_at(SHA256_SIZE);
 
-        let stretched = stretch_pass(salt, password.as_bytes(), iter).unwrap();
+        let stretched = stretch_pass(salt, password, iter).unwrap();
         let mut stretched_hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
         let mut sha = Sha256::new();
         sha.input(&stretched);

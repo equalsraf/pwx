@@ -62,7 +62,7 @@ fn real_main() -> i32 {
     stdout().flush().unwrap();
     let password = rpassword::read_password().unwrap();
 
-    let mut p = match Pwx::open(Path::new(&args.arg_file), &password) {
+    let mut p = match Pwx::open(Path::new(&args.arg_file), &password.as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {}", f);
             exit(-1);
