@@ -46,6 +46,25 @@ struct Args {
     flag_version: bool,
 }
 
+/**
+ * Get password
+ * 1. If PWX_PASSWORD is set use it
+ * 2. Otherwise read from console
+ *
+ * This function may panic on encoding issues
+ */
+fn get_password() -> String {
+    let var = std::env::var("PWX_PASSWORD");
+    if var.is_ok() {
+        return var.unwrap()
+    }
+
+    // Get password from terminal
+    print!("Password: ");
+    stdout().flush().unwrap();
+    rpassword::read_password().unwrap()
+}
+
 fn real_main() -> i32 {
 
     let args: Args = Docopt::new(USAGE)
@@ -57,12 +76,7 @@ fn real_main() -> i32 {
         return 0;
     }
 
-    // Get password from terminal
-    print!("Password: ");
-    stdout().flush().unwrap();
-    let password = rpassword::read_password().unwrap();
-
-    let mut p = match Pwx::open(Path::new(&args.arg_file), &password.as_bytes()) {
+    let mut p = match Pwx::open(Path::new(&args.arg_file), get_password().as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {}", f);
             exit(-1);
