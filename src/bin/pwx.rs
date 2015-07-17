@@ -7,15 +7,15 @@ extern crate rpassword;
 use pwx::{Pwx,PwxIterator};
 use std::io::{Write,stdout,stderr};
 use std::process::exit;
-use std::path::Path;
+use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
 
 const USAGE: &'static str = "
-Usage: pwx [options] <file> list
-       pwx [options] <file> info
-       pwx [options] <file> get <uuid> <name>
-       pwx [options] <file> set <uuid <name> <val>
+Usage: pwx [options] [<file>] list
+       pwx [options] [<file>] info
+       pwx [options] [<file>] get <uuid> <name>
+       pwx [options] [<file>] set <uuid <name> <val>
        pwx (--help | --version)
 
 Options:
@@ -87,9 +87,34 @@ fn real_main() -> i32 {
         return 0;
     }
 
-    let mut p = match Pwx::open(Path::new(&args.arg_file), get_password(&args).as_bytes()) {
+    // The password safe is one of
+    // 1. Command line [<file>]
+    // 2. PWX_DATABASE env var
+    // 3. ~/.pwsafe/psafe.psafe3
+    let env_db = std::env::var("PWX_DATABASE").unwrap_or(String::new());
+
+    let path = if !args.arg_file.is_empty() {
+        PathBuf::from(&args.arg_file)
+    } else if !env_db.is_empty() {
+        PathBuf::from(&env_db)
+    } else {
+        std::env::home_dir().expect("Cannot find your HOME path")
+            .join(".pwsafe").join("pwsafe.psafe3")
+    };
+
+    // FIXME: PathBuf::exists is still Unstable, but we need to verify
+    // if the file exists before prompting for password
+    match std::fs::File::open(&path) {
+        Err(err) => {
+            let _ = writeln!(stderr(), "{}: {}", path.to_string_lossy(), err);
+            return -1;
+        },
+        _ => (),
+    }
+
+    let mut p = match Pwx::open(&path, get_password(&args).as_bytes()) {
         Err(f) => {
-            let _ = writeln!(stderr(), "Error: {}", f);
+            let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
             exit(-1);
         },
         Ok(p) => p,
