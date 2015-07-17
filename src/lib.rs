@@ -26,10 +26,9 @@ const SHA256_SIZE:usize = 32;
 const BLOCK_SIZE:usize = 16;
 
 #[derive(Debug)]
-#[derive(PartialEq)]
 pub enum Fail {
-    UnableToOpen(String),
-    ReadError(String),
+    UnableToOpen(io::Error),
+    ReadError(io::Error),
     InvalidTag,
     InvalidIterationCount,
     WrongPassword,
@@ -40,8 +39,8 @@ pub enum Fail {
 impl fmt::Display for Fail {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Fail::UnableToOpen(ref s) => fmt.write_str(s.as_ref()),
-            Fail::ReadError(ref s) => fmt.write_str(s.as_ref()),
+            Fail::UnableToOpen(ref s) => s.fmt(fmt),
+            Fail::ReadError(ref s) => s.fmt(fmt),
             Fail::InvalidTag => fmt.write_str("Invalid DB Tag"),
             Fail::InvalidIterationCount => fmt.write_str("Invalid DB, iteration count is too low"),
             Fail::WrongPassword => fmt.write_str("Wrong Password for DB"),
@@ -96,7 +95,7 @@ impl<'a> PwxIterator<'a> {
         };
 
         match r.db.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64)) {
-            Err(err) => return Err(Fail::ReadError(err.description().to_owned())),
+            Err(err) => return Err(Fail::ReadError(err)),
             Ok(_) => (),
         }
         r.next_block = 0;
@@ -106,7 +105,7 @@ impl<'a> PwxIterator<'a> {
     pub fn new(db: &mut Pwx) -> Result<PwxIterator,Fail> {
         let start = PREAMBLE_SIZE as u64;
         match db.file.seek(io::SeekFrom::Current(0)) {
-            Err(err) => return Err(Fail::ReadError(err.description().to_owned())),
+            Err(err) => return Err(Fail::ReadError(err)),
             Ok(pos) if pos < start => panic!("BUG invalid file position, before end of preamble."),
             Ok(pos) if (pos-start) % 16 != 0 => panic!("BUG invalid file position, not a multiple of block size"),
             Ok(pos) => Ok(PwxIterator {
@@ -136,7 +135,7 @@ impl<'a> PwxIterator<'a> {
         let mut block = [0u8; BLOCK_SIZE];
         match read_all(&mut self.db.file, &mut block) {
             Ok(_) => (),
-            Err(err) => return Some(Fail::ReadError(err.description().to_owned())),
+            Err(err) => return Some(Fail::ReadError(err)),
         }
         self.next_block += 1;
 
@@ -144,7 +143,7 @@ impl<'a> PwxIterator<'a> {
             let mut expected = [0u8; SHA256_SIZE];
             match read_all(&mut self.db.file, &mut expected) {
                 Ok(_) => (),
-                Err(err) => return Some(Fail::ReadError(err.description().to_owned())),
+                Err(err) => return Some(Fail::ReadError(err)),
             }
             
             let expected_mac = MacResult::new(&expected);
@@ -229,13 +228,13 @@ impl Pwx {
      */
     pub fn open(path: &Path, password: &[u8]) -> Result<Pwx, Fail> {
         let mut file = match File::open(path) {
-            Err(why) => return Err(Fail::UnableToOpen(why.description().to_owned())),
+            Err(why) => return Err(Fail::UnableToOpen(why)),
             Ok(file) => file,
         };
 
         let mut preamble: [u8; PREAMBLE_SIZE] = [0;PREAMBLE_SIZE];
         match read_all(&mut file, &mut preamble) {
-            Err(err) => return Err(Fail::ReadError(err.description().to_owned())),
+            Err(err) => return Err(Fail::ReadError(err)),
             _ => (),
         }
 
