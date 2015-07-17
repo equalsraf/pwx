@@ -12,15 +12,16 @@ use docopt::Docopt;
 use uuid::Uuid;
 
 const USAGE: &'static str = "
-Usage: pwx <file> list
-       pwx <file> info
-       pwx <file> get <uuid> <name>
-       pwx <file> set <uuid <name> <val>
+Usage: pwx [options] <file> list
+       pwx [options] <file> info
+       pwx [options] <file> get <uuid> <name>
+       pwx [options] <file> set <uuid <name> <val>
        pwx (--help | --version)
 
 Options:
-    -h, --help      Show this help message
-    -v, --version   Show pwx version
+    -h, --help          Show this help message
+    -v, --version       Show pwx version
+    --pass-interactive  Read password from console
 ";
 
 // Get pkg version at compile time
@@ -44,25 +45,35 @@ struct Args {
     cmd_get: bool,
     cmd_info: bool,
     flag_version: bool,
+    flag_pass_interactive: bool,
+}
+
+fn get_password_from_console() -> String {
+    // Get password from terminal
+    print!("Password: ");
+    stdout().flush().unwrap();
+    rpassword::read_password().unwrap()
 }
 
 /**
  * Get password
- * 1. If PWX_PASSWORD is set use it
- * 2. Otherwise read from console
+ * 1. If --pass-interactive read from console
+ * 2. If PWX_PASSWORD is set use it
+ * 3. Otherwise read from console
  *
  * This function may panic on encoding issues
  */
-fn get_password() -> String {
+fn get_password(args: &Args) -> String {
+    if args.flag_pass_interactive {
+        return get_password_from_console();
+    }
+
     let var = std::env::var("PWX_PASSWORD");
     if var.is_ok() {
         return var.unwrap()
     }
 
-    // Get password from terminal
-    print!("Password: ");
-    stdout().flush().unwrap();
-    rpassword::read_password().unwrap()
+    get_password_from_console()
 }
 
 fn real_main() -> i32 {
@@ -76,7 +87,7 @@ fn real_main() -> i32 {
         return 0;
     }
 
-    let mut p = match Pwx::open(Path::new(&args.arg_file), get_password().as_bytes()) {
+    let mut p = match Pwx::open(Path::new(&args.arg_file), get_password(&args).as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {}", f);
             exit(-1);
