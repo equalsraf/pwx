@@ -52,7 +52,7 @@ fn get_password_from_console() -> String {
     // Get password from terminal
     print!("Password: ");
     stdout().flush().unwrap();
-    rpassword::read_password().unwrap()
+    rpassword::read_password().ok().expect("Unable to read password from console")
 }
 
 /**
