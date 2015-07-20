@@ -4,7 +4,7 @@ extern crate rustc_serialize;
 extern crate uuid;
 extern crate rpassword;
 
-use pwx::{Pwx,PwxIterator};
+use pwx::{Pwx,PwxIterator,field2type};
 use std::io::{Write,stdout,stderr};
 use std::process::exit;
 use std::path::PathBuf;
@@ -15,7 +15,7 @@ use pwx::util::fuzzy_eq;
 const USAGE: &'static str = "
 Usage: pwx [options] [<file>] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [<filter>]
        pwx [options] [<file>] info
-       pwx [options] [<file>] get <uuid> <name>
+       pwx [options] [<file>] get <uuid> <fieldname>
        pwx (--help | --version)
 
 Options:
@@ -43,7 +43,7 @@ macro_rules! usage {
 #[derive(RustcDecodable, Debug)]
 struct Args {
     arg_file: String,
-    arg_name: String,
+    arg_fieldname: String,
     arg_uuid: String,
     arg_filter: String,
     flag_url: String,
@@ -236,6 +236,45 @@ fn real_main() -> i32 {
                 _ => (),
             }
         }
+    } else if args.cmd_get {
+
+        let has_ftype = field2type(&args.arg_fieldname);
+        if has_ftype.is_none() {
+            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
+            return -1;
+        }
+        let mtype = has_ftype.unwrap();
+
+        let mut uuid;
+        let mut data = String::new();
+        let mut found = false;
+        let fields = PwxIterator::from_start(&mut p).unwrap();
+        for (typ,val) in fields {
+            match typ {
+                // UUID
+                0x01 => {
+                    uuid = Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string();
+                    found = uuid == args.arg_uuid;
+                },
+                // Save field contents for later
+                typ if typ == mtype => {
+                    data = String::from_utf8_lossy(val.as_ref()).into_owned()
+                },
+                0xff if found == true  => {
+                    if data.is_empty() {
+                        let _ = writeln!(stderr(), "Attribute {} is missing from {}", args.arg_fieldname, args.arg_uuid);
+                        return -1;
+                    } else {
+                        println!("{}", data);
+                        return 0;
+                    }
+                },
+                _ => (),
+            }
+        }
+
+        let _ = writeln!(stderr(), "Unknown record: {}", args.arg_uuid);
+        return -1;
     }
 
     return 0
