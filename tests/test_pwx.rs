@@ -78,3 +78,31 @@ fn list_filter() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
+#[test]
+fn get() {
+    // URL
+    let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "url");
+    assert!(output.status.success());
+    let sout = String::from_utf8_lossy(&output.stdout);
+    println!("{}", sout);
+    assert_eq!(sout.trim(), "https://facebook.com");
+
+    // Group
+    let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "group");
+    assert!(output.status.success());
+    let sout = String::from_utf8_lossy(&output.stdout);
+    println!("{}", sout);
+    assert_eq!(sout.trim(), "social");
+
+    // Group
+    let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "notes");
+    assert!(output.status.success());
+    let sout = String::from_utf8_lossy(&output.stdout);
+    println!("{}", sout);
+    assert_eq!(sout.trim(), "Some notes");
+
+    // Command is not set so the command fails
+    let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "command");
+    assert!(!output.status.success());
+}
+

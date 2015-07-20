@@ -25,6 +25,27 @@ const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
 const BLOCK_SIZE:usize = 16;
 
+const FIELDNAMES: &'static [(&'static str, u8)] = &[
+    ("group", 0x02),
+    ("title", 0x03),
+    ("username", 0x04),
+    ("notes", 0x05),
+    ("url", 0x0d),
+    ("command", 0x12),
+    ("email", 0x14),
+    ];
+
+/** Return type for field name */
+pub fn field2type(name: &str) -> Option<u8>
+{
+    for field in FIELDNAMES {
+        if name == field.0 {
+            return Some(field.1)
+        }
+    }
+    None
+}
+
 #[derive(Debug)]
 pub enum Fail {
     UnableToOpen(io::Error),
