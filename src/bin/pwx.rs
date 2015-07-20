@@ -16,7 +16,6 @@ const USAGE: &'static str = "
 Usage: pwx [options] [<file>] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [<filter>]
        pwx [options] [<file>] info
        pwx [options] [<file>] get <uuid> <name>
-       pwx [options] [<file>] set <uuid <name> <val>
        pwx (--help | --version)
 
 Options:
@@ -45,7 +44,6 @@ macro_rules! usage {
 struct Args {
     arg_file: String,
     arg_name: String,
-    arg_val: String,
     arg_uuid: String,
     arg_filter: String,
     flag_url: String,
@@ -53,7 +51,6 @@ struct Args {
     flag_username: String,
     flag_title: String,
     cmd_list: bool,
-    cmd_set: bool,
     cmd_get: bool,
     cmd_info: bool,
     flag_version: bool,
