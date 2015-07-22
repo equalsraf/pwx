@@ -3,18 +3,20 @@
 //
 
 use std::process::Command;
-
-// TODO: Find a better way to get pwx binary path
-const PWXBIN: &'static str = "target/debug/pwx";
+use std::path::PathBuf;
+use std::env::current_exe;
 
 macro_rules! pwxrun {
-    ($($arg:expr),*) => {
-        Command::new(PWXBIN)
+    ($($arg:expr),*) => {{
+        let binpath = current_exe().unwrap()
+                        .parent().expect("executable path")
+                        .to_path_buf().join("pwx");
+        Command::new(&binpath)
             .env("PWX_PASSWORD", "test")
             .env("PWX_DATABASE", "tests/test.psafe3")
             $(.arg($arg))*
-            .output().unwrap_or_else(|e| {panic!("Failed to execute pwx({}) {}", PWXBIN, e)})
-    };
+            .output().unwrap_or_else(|e| {panic!("Failed to execute pwx({}) {}", binpath.to_string_lossy(), e)})
+    }};
 }
 
 /* Show all entries in the DB */
