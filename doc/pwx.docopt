@@ -1,0 +1,13 @@
+Usage: pwx [options] [<file>] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [<filter>]
+       pwx [options] [<file>] info
+       pwx [options] [<file>] get <uuid> <fieldname>
+       pwx (--help | --version)
+
+Options:
+    --pass-interactive      Read password from console
+    -R, --url URL
+    -G, --group GROUP
+    -U, --username USERNAME
+    -T, --title TITLE
+    -h, --help              Show this help message
+    -v, --version           Show pwx version

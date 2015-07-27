@@ -12,33 +12,8 @@ use docopt::Docopt;
 use uuid::Uuid;
 use pwx::util::fuzzy_eq;
 
-const USAGE: &'static str = "
-Usage: pwx [options] [<file>] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [<filter>]
-       pwx [options] [<file>] info
-       pwx [options] [<file>] get <uuid> <fieldname>
-       pwx (--help | --version)
-
-Options:
-    -h, --help          Show this help message
-    -v, --version       Show pwx version
-    --pass-interactive  Read password from console
-
-Filters:
-    -R, --url URL
-    -G, --group GROUP
-    -U, --username USERNAME
-    -T, --title TITLE
-";
-
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
-macro_rules! usage {
-    ($code:expr, $err:expr) => {{
-        let _ = writeln!(std::io::stderr(), "{}\n{}", $err, USAGE);
-        return $code;
-    }};
-}
 
 #[derive(RustcDecodable, Debug)]
 struct Args {
@@ -146,7 +121,7 @@ impl<'a> ListFilter<'a> {
 
 fn real_main() -> i32 {
 
-    let args: Args = Docopt::new(USAGE)
+    let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/doc/pwx.docopt")))
                             .and_then(|d| d.decode())
                             .unwrap_or_else(|e| e.exit());
 
