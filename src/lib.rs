@@ -30,6 +30,7 @@ const FIELDNAMES: &'static [(&'static str, u8)] = &[
     ("title", 0x03),
     ("username", 0x04),
     ("notes", 0x05),
+    ("password", 0x06),
     ("url", 0x0d),
     ("command", 0x12),
     ("email", 0x14),

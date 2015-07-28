@@ -106,5 +106,12 @@ fn get() {
     // Command is not set so the command fails
     let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "command");
     assert!(!output.status.success());
+
+    // password
+    let output = pwxrun!("get", "63a19136-46d9-4f75-827b-5312574233e8", "password");
+    assert!(output.status.success());
+    let sout = String::from_utf8_lossy(&output.stdout);
+    println!("{}", sout);
+    assert_eq!(sout.trim(), "testpassverylong");
 }
 
