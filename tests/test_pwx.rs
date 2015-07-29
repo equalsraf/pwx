@@ -25,7 +25,7 @@ fn list() {
     let output = pwxrun!("list");
     let sout = String::from_utf8_lossy(&output.stdout);
     println!("{}", sout);
-    assert_eq!(sout.trim().split('\n').count(), 2);
+    assert_eq!(sout.trim().split('\n').count(), 3);
 }
 
 /* Filter by title */
