@@ -1,0 +1,112 @@
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "PWX" "1" "August 2015" "" ""
+.
+.SH "NAME"
+\fBpwx\fR \- password manager
+.
+.SH "SYNOPSIS"
+\fBpwx\fR [options] [<file>] list [\-R URL] [\-G GROUP] [\-U USERNAME] [\-T TITLE] [<filter>]
+.
+.br
+\fBpwx\fR [options] [<file>] info
+.
+.br
+\fBpwx\fR [options] [<file>] get <uuid> <fieldname>
+.
+.br
+\fBpwx\fR (\-\-help | \-\-version)
+.
+.br
+.
+.SH "DESCRIPTION"
+\fBpwx\fR is a CLI password manager, compatible with Password Safe v3\. A password safe database is a list of records, each holding multiple fields with login information (username, password, url, etc)\.
+.
+.SS "Exit status:"
+0 if OK, \-1 on error\.
+.
+.SH "EXAMPLES"
+The \fIlist\fR command is used to list entries in the database\.
+.
+.IP "" 4
+.
+.nf
+
+$ pwx list
+.
+.fi
+.
+.IP "" 0
+.
+.P
+List accepts a filter argument, that matches all text fields in a record\.
+.
+.IP "" 4
+.
+.nf
+
+$ pwx list some
+43fe1d0e\-b65f\-4e48\-9abf\-a1c5a1beeee8 facebook[some@email\.com]
+63a19136\-46d9\-4f75\-827b\-5312574233e8 testthis[testuser]
+.
+.fi
+.
+.IP "" 0
+.
+.P
+You can also match specific fields
+.
+.IP "" 4
+.
+.nf
+
+$ pwx list \-\-title face
+43fe1d0e\-b65f\-4e48\-9abf\-a1c5a1beeee8 facebook[some@email\.com]
+
+$ pwx list \-\-username social
+63a19136\-46d9\-4f75\-827b\-5312574233e8 testthis[testuser]
+
+$ pwx list \-\-group social
+43fe1d0e\-b65f\-4e48\-9abf\-a1c5a1beeee8 facebook[some@email\.com]
+
+$ pwx list \-\-url facebook\.com
+43fe1d0e\-b65f\-4e48\-9abf\-a1c5a1beeee8 facebook[some@email\.com]
+.
+.fi
+.
+.IP "" 0
+.
+.P
+Or combine multiple filters
+.
+.IP "" 4
+.
+.nf
+
+$ pwx list \-\-user some facebook
+43fe1d0e\-b65f\-4e48\-9abf\-a1c5a1beeee8 facebook[some@email\.com]
+.
+.fi
+.
+.IP "" 0
+.
+.P
+All filters MUST match for a record to be printed\. Filters are case insensitive\.
+.
+.SH "FILES"
+.
+.TP
+\fI~/\.pwsafe/pwsafe\.psafe3\fR
+The user\'s default password database, if \fIPWX_DATABASE\fR is not set and no path is given as argument\.
+.
+.SH "ENVIRONMENT"
+.
+.TP
+\fIPWX_PASSWORD\fR
+The database password\. This can be overriden with \fB\-\-pass\-interactive\fR\.
+.
+.TP
+\fIPWX_DATABASE\fR
+The database path\. This is only used if no \fB[<file>]\fR path is given as argument\.
+
