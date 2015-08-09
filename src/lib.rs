@@ -21,6 +21,8 @@ use twofish::Key;
 pub mod util;
 use util::{from_le32,stretch_pass,read_all};
 
+pub mod pinentry;
+
 const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
 const BLOCK_SIZE:usize = 16;

@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
 use pwx::util::{fuzzy_eq, from_time_t, abspath};
+use pwx::pinentry::PinEntry;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -35,6 +36,35 @@ struct Args {
 }
 
 /**
+ * Get user master password.
+ *
+ * If pinentry is available use it, otherwise fallback
+ * to reading user password from the console.
+ *
+ * Returns None if pinentry failed to retrieve a password.
+ * May panic if it can't read a password from the terminal.
+ */
+fn get_password_from_user(description: &str) -> Option<String> {
+
+    // If available use pinentry to get the user password
+    if let Ok(mut pe) = PinEntry::new() {
+        match pe.set_description(description)
+            .set_title("pwx")
+            .set_prompt("Password")
+            .getpin() {
+            Ok(pass) => return Some(pass),
+            Err(_) => return None,
+        }
+    }
+
+    // Get password from terminal
+    println!("{}", description);
+    print!("Password: ");
+    stdout().flush().unwrap();
+    Some(rpassword::read_password().ok().expect("Unable to read password from console"))
+}
+
+/**
  * Get password
  * 1. If --pass-interactive read from console
  * 2. If PWX_PASSWORD is set use it
@@ -42,19 +72,12 @@ struct Args {
  *
  * This function may panic on encoding issues
  */
-fn get_user_password(args: &Args, info: &str) -> String {
-
+fn get_password(args: &Args, description: &str) -> Option<String> {
     let var = std::env::var("PWX_PASSWORD");
-
     if args.flag_pass_interactive || !var.is_ok() {
-        if !info.is_empty() && !args.flag_quiet {
-            println!("{}", info);
-        }
-        print!("Password: ");
-        stdout().flush().unwrap();
-        rpassword::read_password().ok().expect("Unable to read password from console")
+        get_password_from_user(description)
     } else {
-        var.unwrap()
+        Some(var.unwrap())
     }
 }
 
@@ -158,8 +181,13 @@ fn real_main() -> i32 {
         _ => (),
     }
 
-    let info = format!("Opening {}", path.to_string_lossy());
-    let mut p = match Pwx::open(&path, get_user_password(&args, &info).as_bytes()) {
+    path = match abspath(&path) {
+        Ok(abs) => abs,
+        Err(_) => path,
+    };
+
+    let description = format!("Opening {}", path.to_string_lossy());
+    let mut p = match Pwx::open(&path, get_password(&args, &description).expect("Unable to get user password").as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
             exit(-1);
