@@ -39,6 +39,21 @@ pub fn from_le32(b: &[u8]) -> Option<u32> {
             + ((b[0] as u32)))
 }
 
+/**Convert 8 byte slice into u64 (from little endian)*/
+pub fn from_le64(b: &[u8]) -> Option<u64> {
+    if b.len() < 8 {
+        return None
+    }
+    Some(((b[7] as u64) << 56)
+            + ((b[6] as u64) << 48)
+            + ((b[5] as u64) << 40)
+            + ((b[4] as u64) << 32)
+            + ((b[3] as u64) << 24)
+            + ((b[2] as u64) << 16)
+            + ((b[1] as u64) << 8)
+            + ((b[0] as u64)))
+}
+
 /**
  * Matching function for filters - this behaves as
  * a case insensitive substring find. Except it
@@ -59,6 +74,7 @@ pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
 #[cfg(test)]
 mod tests {
     use super::from_le32;
+    use super::from_le64;
     use super::fuzzy_eq;
 
     #[test]
@@ -75,7 +91,29 @@ mod tests {
         assert_eq!(from_le32(b"\xff\xff"), None);
         assert_eq!(from_le32(b"\xff\xff\xff"), None);
     }
+
+    #[test]
+    fn test_from_le64() {
+        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x00\x00").unwrap(), 0);
+        assert_eq!(from_le64(b"\x01\x00\x00\x00\x00\x00\x00\x00").unwrap(), 0x01);
+        assert_eq!(from_le64(b"\x00\x01\x00\x00\x00\x00\x00\x00").unwrap(), 0x0100);
+        assert_eq!(from_le64(b"\x00\x00\x01\x00\x00\x00\x00\x00").unwrap(), 0x010000);
+        assert_eq!(from_le64(b"\x00\x00\x00\x01\x00\x00\x00\x00").unwrap(), 0x01000000);
+        assert_eq!(from_le64(b"\x00\x00\x00\x00\x01\x00\x00\x00").unwrap(), 0x0100000000);
+        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x01\x00\x00").unwrap(), 0x010000000000);
+        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x01\x00").unwrap(), 0x01000000000000);
+        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x00\x01").unwrap(), 0x0100000000000000);
+        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff\xff\xff\xff").unwrap(), 0xffffffffffffffff);
     
+        assert_eq!(from_le64(b""), None);
+        assert_eq!(from_le64(b"\xff"), None);
+        assert_eq!(from_le64(b"\xff\xff"), None);
+        assert_eq!(from_le64(b"\xff\xff\xff"), None);
+        assert_eq!(from_le64(b"\xff\xff\xff\xff"), None);
+        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff"), None);
+        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff\xff"), None);
+    }
+
     #[test]
     fn test_fuzzy_eq() {
         assert_eq!(fuzzy_eq("", ""), false);
@@ -83,6 +121,20 @@ mod tests {
         assert_eq!(fuzzy_eq("", "hay"), false);
         assert_eq!(fuzzy_eq("Needle", "needle"), true);
         assert_eq!(fuzzy_eq("needle", "http://nEedle"), true);
+    }
+}
+
+/**
+ * Read binary data as time_t, i.e. decode 32bit or 64bit sequences
+ * as unsigned little endian. [sec. 3.1.3]
+ */
+pub fn from_time_t(b: &[u8]) -> Option<u64> {
+    if b.len() == 4 {
+        from_le32(b).map(|val| val as u64)
+    } else if b.len() == 8 {
+        from_le64(b)
+    } else {
+        None
     }
 }
 

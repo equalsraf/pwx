@@ -25,27 +25,55 @@ const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
 const BLOCK_SIZE:usize = 16;
 
-const FIELDNAMES: &'static [(&'static str, u8)] = &[
-    ("group", 0x02),
-    ("title", 0x03),
-    ("username", 0x04),
-    ("notes", 0x05),
-    ("password", 0x06),
-    ("url", 0x0d),
-    ("command", 0x12),
-    ("email", 0x14),
-    ];
+pub mod dbspec {
+    pub const GROUP: u8 = 0x02;
+    pub const TITLE: u8 = 0x03;
+    pub const USERNAME: u8 = 0x04;
+    pub const NOTES: u8 = 0x05;
+    pub const PASSWORD: u8 = 0x06;
+    pub const CTIME: u8 = 0x07;
+    pub const ATIME: u8 = 0x09;
+    pub const MTIME: u8 = 0x0c;
+    pub const URL: u8 = 0x0d;
+    pub const COMMAND: u8 = 0x12;
+    pub const EMAIL: u8 = 0x14;
 
-/** Return type for field name */
-pub fn field2type(name: &str) -> Option<u8>
-{
-    for field in FIELDNAMES {
-        if name == field.0 {
-            return Some(field.1)
-        }
+    const FIELDNAMES: &'static [(&'static str, u8)] = &[
+        ("group", GROUP),
+        ("title", TITLE),
+        ("username", USERNAME),
+        ("notes", NOTES),
+        ("password", PASSWORD),
+        ("ctime", CTIME),
+        ("atime", ATIME),
+        ("mtime", MTIME),
+        ("url", URL),
+        ("command", COMMAND),
+        ("email", EMAIL),
+        ];
+
+    /// True if the field type is a time_t field
+    pub fn is_time_t(typ: u8) -> bool {
+        [CTIME,ATIME,MTIME].contains(&typ)
     }
-    None
+
+    /// True if the field type is an UTF8 string
+    pub fn is_str(typ: u8) -> bool {
+        [GROUP,TITLE,USERNAME,NOTES,PASSWORD,URL,COMMAND,EMAIL].contains(&typ)
+    }
+
+    /// Return type for field name
+    pub fn field2type(name: &str) -> Option<u8>
+    {
+        for field in FIELDNAMES {
+            if name == field.0 {
+                return Some(field.1)
+            }
+        }
+        None
+    }
 }
+
 
 #[derive(Debug)]
 pub enum Fail {

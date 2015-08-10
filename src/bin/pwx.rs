@@ -4,13 +4,14 @@ extern crate rustc_serialize;
 extern crate uuid;
 extern crate rpassword;
 
-use pwx::{Pwx,PwxIterator,field2type};
+use pwx::{Pwx,PwxIterator};
+use pwx::dbspec;
 use std::io::{Write,stdout,stderr};
 use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
-use pwx::util::fuzzy_eq;
+use pwx::util::{fuzzy_eq, from_time_t};
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -203,6 +204,8 @@ fn real_main() -> i32 {
         for (typ,val) in fields {
             match typ {
                 0x01 => print!("{} ", Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string()),
+                0x04 => print!("{} ", from_time_t(val.as_ref())
+                                 .expect("Invalid time_t field contents")),
                 0x07 => print!("{} ", String::from_utf8_lossy(val.as_ref())),
                 0x08 => println!("@{} ", String::from_utf8_lossy(val.as_ref())),
                 0x09 => println!("{} ", String::from_utf8_lossy(val.as_ref())),
@@ -213,7 +216,7 @@ fn real_main() -> i32 {
         }
     } else if args.cmd_get {
 
-        let has_ftype = field2type(&args.arg_fieldname);
+        let has_ftype = dbspec::field2type(&args.arg_fieldname);
         if has_ftype.is_none() {
             let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
             return -1;
@@ -223,7 +226,8 @@ fn real_main() -> i32 {
         let mut uuid;
         let mut data = String::new();
         let mut found = false;
-        let fields = PwxIterator::from_start(&mut p).unwrap();
+        let mut fields = PwxIterator::from_start(&mut p).unwrap();
+        fields.skip_record();
         for (typ,val) in fields {
             match typ {
                 // UUID
@@ -233,7 +237,11 @@ fn real_main() -> i32 {
                 },
                 // Save field contents for later
                 typ if typ == mtype => {
-                    data = String::from_utf8_lossy(val.as_ref()).into_owned()
+                    data = if dbspec::is_time_t(typ) {
+                        format!("{}", from_time_t(val.as_ref()).expect("Invalid time_t value"))
+                    } else {
+                        String::from_utf8_lossy(val.as_ref()).into_owned()
+                    }
                 },
                 0xff if found == true  => {
                     if data.is_empty() {
