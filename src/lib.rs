@@ -19,7 +19,7 @@ mod twofish;
 use twofish::Key;
 
 pub mod util;
-use util::{from_le32,stretch_pass};
+use util::{from_le32,stretch_pass,read_all};
 
 const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
@@ -383,28 +383,6 @@ impl Pwx {
             self.crypto.hmac.input(data);
             self.hmac_block_next += 1;
         }
-    }
-}
-
-/**
- * Fill buffer with data from file or fail
- */
-fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
-    let mut count = 0;
-
-    while count < buf.len() {
-        let res = r.read(&mut buf[count..]);
-        match res {
-            Ok(0) => break,
-            Ok(done) => count += done,
-            Err(err) => return Err(err),
-        }
-    }
-
-    if count == buf.len() {
-        Ok(count)
-    } else {
-        Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
     }
 }
 
