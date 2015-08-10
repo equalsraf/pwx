@@ -4,6 +4,9 @@ use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use std::ascii::AsciiExt;
 use std::io;
+use std::path::{PathBuf,Path};
+use std::env::current_dir;
+use std::io::Error as IoError;
 
 /**
  * Generate the SHA-256 value of a password after several rounds of stretching.
@@ -72,6 +75,57 @@ pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
     h.find(&n).is_some()
 }
 
+/**
+ * Read binary data as time_t, i.e. decode 32bit or 64bit sequences
+ * as unsigned little endian. [sec. 3.1.3]
+ */
+pub fn from_time_t(b: &[u8]) -> Option<u64> {
+    if b.len() == 4 {
+        from_le32(b).map(|val| val as u64)
+    } else if b.len() == 8 {
+        from_le64(b)
+    } else {
+        None
+    }
+}
+
+/**
+ * Fill buffer with data from file or fail
+ */
+pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
+    let mut count = 0;
+
+    while count < buf.len() {
+        let res = r.read(&mut buf[count..]);
+        match res {
+            Ok(0) => break,
+            Ok(done) => count += done,
+            Err(err) => return Err(err),
+        }
+    }
+
+    if count == buf.len() {
+        Ok(count)
+    } else {
+        Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
+    }
+}
+
+/** Convert path to absolute path */
+pub fn abspath(p: &PathBuf) -> Result<PathBuf,IoError> {
+    if p.is_absolute() {
+        return Ok(p.to_owned())
+    } else {
+        match current_dir() {
+            Ok(mut cd) => {
+                cd.push(p);
+                Ok(cd)
+            },
+            Err(err) => Err(err),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::from_le32;
@@ -123,41 +177,8 @@ mod tests {
         assert_eq!(fuzzy_eq("Needle", "needle"), true);
         assert_eq!(fuzzy_eq("needle", "http://nEedle"), true);
     }
+
 }
 
-/**
- * Read binary data as time_t, i.e. decode 32bit or 64bit sequences
- * as unsigned little endian. [sec. 3.1.3]
- */
-pub fn from_time_t(b: &[u8]) -> Option<u64> {
-    if b.len() == 4 {
-        from_le32(b).map(|val| val as u64)
-    } else if b.len() == 8 {
-        from_le64(b)
-    } else {
-        None
-    }
-}
 
-/**
- * Fill buffer with data from file or fail
- */
-pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
-    let mut count = 0;
-
-    while count < buf.len() {
-        let res = r.read(&mut buf[count..]);
-        match res {
-            Ok(0) => break,
-            Ok(done) => count += done,
-            Err(err) => return Err(err),
-        }
-    }
-
-    if count == buf.len() {
-        Ok(count)
-    } else {
-        Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
-    }
-}
 

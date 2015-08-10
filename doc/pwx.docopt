@@ -9,5 +9,6 @@ Options:
     -G, --group GROUP
     -U, --username USERNAME
     -T, --title TITLE
+    -q, --quiet
     -h, --help              Show this help message
     -v, --version           Show pwx version

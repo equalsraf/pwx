@@ -11,7 +11,7 @@ use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
-use pwx::util::{fuzzy_eq, from_time_t};
+use pwx::util::{fuzzy_eq, from_time_t, abspath};
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -26,18 +26,12 @@ struct Args {
     flag_group: String,
     flag_username: String,
     flag_title: String,
+    flag_quiet: bool,
     cmd_list: bool,
     cmd_get: bool,
     cmd_info: bool,
     flag_version: bool,
     flag_pass_interactive: bool,
-}
-
-fn get_password_from_console() -> String {
-    // Get password from terminal
-    print!("Password: ");
-    stdout().flush().unwrap();
-    rpassword::read_password().ok().expect("Unable to read password from console")
 }
 
 /**
@@ -48,17 +42,20 @@ fn get_password_from_console() -> String {
  *
  * This function may panic on encoding issues
  */
-fn get_password(args: &Args) -> String {
-    if args.flag_pass_interactive {
-        return get_password_from_console();
-    }
+fn get_user_password(args: &Args, info: &str) -> String {
 
     let var = std::env::var("PWX_PASSWORD");
-    if var.is_ok() {
-        return var.unwrap()
-    }
 
-    get_password_from_console()
+    if args.flag_pass_interactive || !var.is_ok() {
+        if !info.is_empty() && !args.flag_quiet {
+            println!("{}", info);
+        }
+        print!("Password: ");
+        stdout().flush().unwrap();
+        rpassword::read_password().ok().expect("Unable to read password from console")
+    } else {
+        var.unwrap()
+    }
 }
 
 /** Filters for the 'list' command */
@@ -137,13 +134,18 @@ fn real_main() -> i32 {
     // 3. ~/.pwsafe/psafe.psafe3
     let env_db = std::env::var("PWX_DATABASE").unwrap_or(String::new());
 
-    let path = if !args.arg_file.is_empty() {
+    let mut path = if !args.arg_file.is_empty() {
         PathBuf::from(&args.arg_file)
     } else if !env_db.is_empty() {
         PathBuf::from(&env_db)
     } else {
         std::env::home_dir().expect("Cannot find your HOME path")
             .join(".pwsafe").join("pwsafe.psafe3")
+    };
+
+    path = match abspath(&path) {
+        Ok(abs) => abs,
+        Err(_) => path,
     };
 
     // FIXME: PathBuf::exists is still Unstable, but we need to verify
@@ -156,7 +158,8 @@ fn real_main() -> i32 {
         _ => (),
     }
 
-    let mut p = match Pwx::open(&path, get_password(&args).as_bytes()) {
+    let info = format!("Opening {}", path.to_string_lossy());
+    let mut p = match Pwx::open(&path, get_user_password(&args, &info).as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
             exit(-1);
