@@ -5,6 +5,7 @@
 `pwx` [options] [&lt;file&gt;] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [&lt;filter&gt;]<br>
 `pwx` [options] [&lt;file&gt;] info<br>
 `pwx` [options] [&lt;file&gt;] get &lt;uuid&gt; &lt;fieldname&gt;<br>
+`pwx` [options] [&lt;file&gt;] count [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [&lt;filter&gt;]<br>
 `pwx` (--help | --version)<br>
 
 

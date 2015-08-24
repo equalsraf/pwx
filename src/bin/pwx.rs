@@ -28,6 +28,7 @@ struct Args {
     flag_username: String,
     flag_title: String,
     flag_quiet: bool,
+    cmd_count: bool,
     cmd_list: bool,
     cmd_get: bool,
     cmd_info: bool,
@@ -202,7 +203,8 @@ fn real_main() -> i32 {
         return -1;
     }
 
-    if args.cmd_list {
+    if args.cmd_list || args.cmd_count {
+        let mut count = 0;
         let mut fields = PwxIterator::from_start(&mut p).unwrap();
         fields.skip_record();
 
@@ -222,7 +224,11 @@ fn real_main() -> i32 {
                 },
                 0xff => {
                     if filter.matched() {
-                        println!("{} {}[{}]", uuid, title, username);
+                        if args.cmd_count {
+                            count += 1
+                        } else {
+                            println!("{} {}[{}]", uuid, title, username);
+                        }
                         uuid = String::new();
                         title = String::new();
                         username = String::new();
@@ -231,6 +237,9 @@ fn real_main() -> i32 {
                 _ => (),
             }
             filter.process(typ, &val);
+        }
+        if args.cmd_count {
+            println!("{}", count);
         }
     } else if args.cmd_info {
 
