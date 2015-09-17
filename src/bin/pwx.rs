@@ -33,6 +33,7 @@ struct Args {
     cmd_info: bool,
     flag_version: bool,
     flag_pass_interactive: bool,
+    flag_no_pinentry: bool,
 }
 
 /**
@@ -44,16 +45,18 @@ struct Args {
  * Returns None if pinentry failed to retrieve a password.
  * May panic if it can't read a password from the terminal.
  */
-fn get_password_from_user(description: &str) -> Option<String> {
+fn get_password_from_user(description: &str, args: &Args) -> Option<String> {
 
     // If available use pinentry to get the user password
-    if let Ok(mut pe) = PinEntry::new() {
-        match pe.set_description(description)
-            .set_title("pwx")
-            .set_prompt("Password")
-            .getpin() {
-            Ok(pass) => return Some(pass),
-            Err(_) => return None,
+    if !args.flag_no_pinentry {
+        if let Ok(mut pe) = PinEntry::new() {
+            match pe.set_description(description)
+                .set_title("pwx")
+                .set_prompt("Password")
+                .getpin() {
+                    Ok(pass) => return Some(pass),
+                    Err(_) => return None,
+                }
         }
     }
 
@@ -75,7 +78,7 @@ fn get_password_from_user(description: &str) -> Option<String> {
 fn get_password(args: &Args, description: &str) -> Option<String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
-        get_password_from_user(description)
+        get_password_from_user(description, args)
     } else {
         Some(var.unwrap())
     }
