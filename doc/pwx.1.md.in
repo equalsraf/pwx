@@ -51,6 +51,7 @@ To get a specific field use the get command
 
     $ target/debug/pwx tests/test.psafe3 get 63a19136-46d9-4f75-827b-5312574233e8 password
 
+Valid field names are **group**, **title**, **username**, **notes**, **password**, **ctime**, **atime**, **mtime**, **url**, **command**, **email**.
 
 ## FILES
 

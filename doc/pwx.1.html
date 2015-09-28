@@ -77,6 +77,7 @@
 <p><code>pwx</code> [options] [&lt;file&gt;] list [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [&lt;filter&gt;]<br />
 <code>pwx</code> [options] [&lt;file&gt;] info<br />
 <code>pwx</code> [options] [&lt;file&gt;] get &lt;uuid&gt; &lt;fieldname&gt;<br />
+<code>pwx</code> [options] [&lt;file&gt;] count [-R URL] [-G GROUP] [-U USERNAME] [-T TITLE] [&lt;filter&gt;]<br />
 <code>pwx</code> (--help | --version)<br /></p>
 
 <h2 id="DESCRIPTION">DESCRIPTION</h2>
@@ -127,6 +128,11 @@ Filters are case insensitive.</p>
 
 <p>To get a specific field use the get command</p>
 
+<pre><code>$ target/debug/pwx tests/test.psafe3 get 63a19136-46d9-4f75-827b-5312574233e8 password
+</code></pre>
+
+<p>Valid field names are <strong>group</strong>, <strong>title</strong>, <strong>username</strong>, <strong>notes</strong>, <strong>password</strong>, <strong>ctime</strong>, <strong>atime</strong>, <strong>mtime</strong>, <strong>url</strong>, <strong>command</strong>, <strong>email</strong>.</p>
+
 <h2 id="FILES">FILES</h2>
 
 <dl>
@@ -145,7 +151,7 @@ Filters are case insensitive.</p>
 
   <ol class='man-decor man-foot man foot'>
     <li class='tl'></li>
-    <li class='tc'>August 2015</li>
+    <li class='tc'>September 2015</li>
     <li class='tr'>pwx(1)</li>
   </ol>
 
