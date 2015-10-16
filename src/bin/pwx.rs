@@ -22,7 +22,7 @@ struct Args {
     arg_file: String,
     arg_fieldname: String,
     arg_uuid: String,
-    arg_filter: String,
+    arg_filter: Vec<String>,
     flag_url: String,
     flag_group: String,
     flag_username: String,
@@ -91,19 +91,29 @@ struct ListFilter<'a> {
     m_group: bool,
     m_username: bool,
     m_title: bool,
-    m_filter: bool,
+    m_filter: Vec<bool>,
     args: &'a Args,
 }
 
 impl<'a> ListFilter<'a> {
     fn new(args: &Args) -> ListFilter {
-        ListFilter {
+        let mut f = ListFilter {
             m_group: args.flag_group.is_empty(),
             m_url: args.flag_url.is_empty(),
             m_username: args.flag_username.is_empty(),
             m_title: args.flag_title.is_empty(),
-            m_filter: args.arg_filter.is_empty(),
+            m_filter: Vec::new(),
             args: args,
+        };
+        for _ in 0..args.arg_filter.len() {
+            f.m_filter.push(false);
+        }
+        f
+    }
+
+    fn match_filter(&mut self, val: &str) {
+        for i in 0..self.args.arg_filter.len() {
+            self.m_filter[i] = self.m_filter[i] || fuzzy_eq(&self.args.arg_filter[i], val);
         }
     }
 
@@ -111,26 +121,32 @@ impl<'a> ListFilter<'a> {
     fn process(&mut self, typ: u8, val: &[u8]) {
         match typ {
             0x02 => {
-                self.m_group = self.m_group || fuzzy_eq(&self.args.flag_group, &String::from_utf8_lossy(val.as_ref()));
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.m_group = self.m_group || fuzzy_eq(&self.args.flag_group, s);
+                self.match_filter(s);
             },
             0x03 => {
-                self.m_title = self.m_title || fuzzy_eq(&self.args.flag_title, &String::from_utf8_lossy(val.as_ref()));
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.m_title = self.m_title || fuzzy_eq(&self.args.flag_title, s);
+                self.match_filter(s);
             },
             0x04 => {
-                self.m_username = self.m_username || fuzzy_eq(&self.args.flag_username, &String::from_utf8_lossy(val.as_ref()));
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.m_username = self.m_username || fuzzy_eq(&self.args.flag_username, s);
+                self.match_filter(s);
             },
             0x05 => {
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.match_filter(s);
             },
             0x0d => {
-                self.m_url = self.m_url || fuzzy_eq(&self.args.flag_url, &String::from_utf8_lossy(val.as_ref()));
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.m_url = self.m_url || fuzzy_eq(&self.args.flag_url, s);
+                self.match_filter(s);
             },
             0x14 => {
-                self.m_filter = self.m_filter || fuzzy_eq(&self.args.arg_filter, &String::from_utf8_lossy(val.as_ref()));
+                let s = &String::from_utf8_lossy(val.as_ref());
+                self.match_filter(s);
             },
             0xff => *self = ListFilter::new(self.args),
             _ => (),
@@ -140,7 +156,12 @@ impl<'a> ListFilter<'a> {
 
     /** Returns true if the record matches the filter */
     fn matched(&self) -> bool {
-        self.m_group && self.m_url && self.m_username && self.m_title && self.m_filter
+        for f in self.m_filter.iter() {
+            if *f == false {
+                return false;
+            }
+        }
+        self.m_group && self.m_url && self.m_username && self.m_title
     }
 }
 
