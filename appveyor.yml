@@ -9,7 +9,7 @@ install:
 - rustc -vV
 - cargo -V
 platform:
-- rust-1.1.0-i686-pc-windows-gnu.exe
+- rust-1.4.0-i686-pc-windows-gnu.exe
 # To build against multiple rust versions add them here
 build: false
 test_script:
