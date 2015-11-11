@@ -4,14 +4,12 @@ use std::fs::File;
 use std::io::Write;
 use std::io::Read;
 
-/**
- * Convert docopt segment to markdown
- *
- * - replace pwx with `pwx` for formatting
- * - append <br> tag at EOL
- * - remove whitespace from line start
- * - replace <> with entities &lt; &gt;
- */
+/// Convert docopt segment to markdown
+///
+/// - replace pwx with `pwx` for formatting
+/// - append <br> tag at EOL
+/// - remove whitespace from line start
+/// - replace <> with entities &lt; &gt;
 fn ronn_synopsis() -> String {
     let d = String::from(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/doc/pwx.docopt"))
 );
@@ -29,9 +27,7 @@ fn ronn_synopsis() -> String {
     out
 }
 
-/**
- * Read /doc/pwx.1.md.in and write /doc/pwx.1.md
- */
+/// Read /doc/pwx.1.md.in and write /doc/pwx.1.md
 fn build_markdown() {
     let s = format!(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/doc/pwx.1.md.in")), synopsis=ronn_synopsis());
     let mut f = File::create(concat!(env!("CARGO_MANIFEST_DIR"), "/doc/pwx.1.md")).unwrap();

@@ -8,10 +8,8 @@ use std::path::PathBuf;
 use std::env::current_dir;
 use std::io::Error as IoError;
 
-/**
- * Generate the SHA-256 value of a password after several rounds of stretching.
- * [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
- */
+/// Generate the SHA-256 value of a password after several rounds of stretching.
+/// [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
 pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_SIZE]> {
 
     if salt.len() < SHA256_SIZE || iter < 2048{
@@ -32,7 +30,7 @@ pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_S
     Some(hash)
 }
 
-/**Convert 4 byte slice into u32 (from little endian)*/
+/// Convert 4 byte slice into u32 (from little endian)
 pub fn from_le32(b: &[u8]) -> Option<u32> {
     if b.len() < 4 {
         return None
@@ -43,7 +41,7 @@ pub fn from_le32(b: &[u8]) -> Option<u32> {
             + ((b[0] as u32)))
 }
 
-/**Convert 8 byte slice into u64 (from little endian)*/
+/// Convert 8 byte slice into u64 (from little endian)
 pub fn from_le64(b: &[u8]) -> Option<u64> {
     if b.len() < 8 {
         return None
@@ -58,11 +56,9 @@ pub fn from_le64(b: &[u8]) -> Option<u64> {
             + ((b[0] as u64)))
 }
 
-/**
- * Matching function for filters - this behaves as
- * a case insensitive substring find. Except it
- * returns false if any of the arguments is empty.
- */
+/// Matching function for filters - this behaves as
+/// a case insensitive substring find. Except it
+/// returns false if any of the arguments is empty.
 pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
 {
     if needle.is_empty() || hay.is_empty() {
@@ -75,10 +71,9 @@ pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
     h.find(&n).is_some()
 }
 
-/**
- * Read binary data as time_t, i.e. decode 32bit or 64bit sequences
- * as unsigned little endian. [sec. 3.1.3]
- */
+
+/// Read binary data as time_t, i.e. decode 32bit or 64bit sequences
+/// as unsigned little endian. [sec. 3.1.3]
 pub fn from_time_t(b: &[u8]) -> Option<u64> {
     if b.len() == 4 {
         from_le32(b).map(|val| val as u64)
@@ -89,9 +84,7 @@ pub fn from_time_t(b: &[u8]) -> Option<u64> {
     }
 }
 
-/**
- * Fill buffer with data from file or fail
- */
+/// Fill buffer with data from file or fail
 pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
     let mut count = 0;
 
@@ -111,7 +104,7 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
     }
 }
 
-/** Convert path to absolute path */
+/// Convert path to absolute path
 pub fn abspath(p: &PathBuf) -> Result<PathBuf,IoError> {
     if p.is_absolute() {
         return Ok(p.to_owned())

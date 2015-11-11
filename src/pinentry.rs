@@ -21,10 +21,8 @@ impl fmt::Display for PinEntryError {
     }
 }
 
-/**
- * PinEntry client, check the Assuan protocol for
- * details.
- */
+/// PinEntry client, check the Assuan protocol for
+/// details.
 pub struct PinEntry {
     cmd: Child,
     pipe_w: ChildStdin,

@@ -18,7 +18,7 @@ macro_rules! pwxrun {
     }};
 }
 
-/* Show all entries in the DB */
+// Show all entries in the DB
 #[test]
 fn list() {
     let output = pwxrun!("list");
@@ -27,7 +27,7 @@ fn list() {
     assert_eq!(sout.trim().split('\n').count(), 3);
 }
 
-/* Filter by title */
+// Filter by title
 #[test]
 fn list_title() {
     let output = pwxrun!("list", "-T", "face");
@@ -36,7 +36,7 @@ fn list_title() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
-/* Filter by User */
+// Filter by User
 #[test]
 fn list_user() {
     let output = pwxrun!("list", "-U", "testuser");
@@ -45,7 +45,7 @@ fn list_user() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
-/* Filter by Group */
+// Filter by Group
 #[test]
 fn list_group() {
     let output = pwxrun!("list", "-G", "social");
@@ -55,7 +55,7 @@ fn list_group() {
     assert!(sout.contains("facebook"));
 }
 
-/* Filter by URL */
+// Filter by URL
 #[test]
 fn list_url() {
     let output = pwxrun!("list", "-R", "facebook.com");
@@ -64,7 +64,7 @@ fn list_url() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
-/* list <filter> searches all text fields */
+// list <filter> searches all text fields
 #[test]
 fn list_filter() {
     let output = pwxrun!("list", "some");
@@ -90,7 +90,7 @@ fn list_filter() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
-/* Same as the filter tests, but for count */
+// Same as the filter tests, but for count
 #[test]
 fn count() {
     let output = pwxrun!("count", "some");

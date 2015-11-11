@@ -37,15 +37,13 @@ struct Args {
     flag_no_pinentry: bool,
 }
 
-/**
- * Get user master password.
- *
- * If pinentry is available use it, otherwise fallback
- * to reading user password from the console.
- *
- * Returns None if pinentry failed to retrieve a password.
- * May panic if it can't read a password from the terminal.
- */
+/// Get user master password.
+///
+/// If pinentry is available use it, otherwise fallback
+/// to reading user password from the console.
+///
+/// Returns None if pinentry failed to retrieve a password.
+/// May panic if it can't read a password from the terminal.
 fn get_password_from_user(description: &str, args: &Args) -> Option<String> {
 
     // If available use pinentry to get the user password
@@ -68,14 +66,12 @@ fn get_password_from_user(description: &str, args: &Args) -> Option<String> {
     Some(rpassword::read_password().ok().expect("Unable to read password from console"))
 }
 
-/**
- * Get password
- * 1. If --pass-interactive read from console
- * 2. If PWX_PASSWORD is set use it
- * 3. Otherwise read from console
- *
- * This function may panic on encoding issues
- */
+/// Get password
+/// 1. If --pass-interactive read from console
+/// 2. If PWX_PASSWORD is set use it
+/// 3. Otherwise read from console
+///
+/// This function may panic on encoding issues
 fn get_password(args: &Args, description: &str) -> Option<String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
@@ -85,7 +81,7 @@ fn get_password(args: &Args, description: &str) -> Option<String> {
     }
 }
 
-/** Filters for the 'list' command */
+/// Filters for the 'list' command
 struct ListFilter<'a> {
     m_url: bool,
     m_group: bool,
@@ -117,7 +113,7 @@ impl<'a> ListFilter<'a> {
         }
     }
 
-    /** Process field */
+    /// Process field
     fn process(&mut self, typ: u8, val: &[u8]) {
         match typ {
             0x02 => {
@@ -154,7 +150,7 @@ impl<'a> ListFilter<'a> {
 
     }
 
-    /** Returns true if the record matches the filter */
+    /// Returns true if the record matches the filter
     fn matched(&self) -> bool {
         for f in self.m_filter.iter() {
             if *f == false {

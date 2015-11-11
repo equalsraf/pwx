@@ -1,6 +1,6 @@
-/**
- * PWS3 database
- */
+//!
+//! PWS3 database
+//!
 extern crate crypto;
 
 use std::fs::File;
@@ -103,9 +103,7 @@ impl fmt::Display for Fail {
 }
 
 // TODO: mlock
-/**
- * Keep these in a separate Boxed struct
- */
+// Keep these in a separate Boxed struct
 struct PwxCrypto {
     key_k: Key,
     iv: [u8; BLOCK_SIZE],
@@ -114,7 +112,7 @@ struct PwxCrypto {
 
 pub struct Pwx {
     crypto: Box<PwxCrypto>,
-    /**True if the HMAC has been verified*/
+    /// True if the HMAC has been verified
     auth: bool,
     iter: u32,
     file: File,
@@ -168,7 +166,7 @@ impl<'a> PwxIterator<'a> {
         }
     }
 
-    /** CBC decrypt block */
+    /// Decrypt CBC block
     fn decrypt(&mut self, in_data: &[u8], out: &mut [u8]) {
         if in_data.len() < 16 || out.len() < 16 {
             panic!("Received buffer with invalid block size");
@@ -182,7 +180,7 @@ impl<'a> PwxIterator<'a> {
         }
     }
 
-    /** Read and decrypt next block in file */
+    /// Read and decrypt next block in file
     fn read_next_block(&mut self, out: &mut [u8]) -> Option<Fail> {
         let mut block = [0u8; BLOCK_SIZE];
         match read_all(&mut self.db.file, &mut block) {
@@ -210,9 +208,7 @@ impl<'a> PwxIterator<'a> {
         None
     }
 
-    /**
-     * Read next field data, HMAC() and return it
-     */
+    /// Read next field data, HMAC() and return it
     fn read_field(&mut self) -> Result<(u8,Vec<u8>),Fail> {
 
         // Read first block
@@ -263,7 +259,7 @@ impl<'a> PwxIterator<'a> {
         Ok((fieldtype,data))
     }
 
-    /**Skip all fields in the current record*/
+    /// Skip all fields in the current record
     pub fn skip_record(&mut self) {
         for (typ,_) in self {
             if typ == 0xff {
@@ -275,9 +271,8 @@ impl<'a> PwxIterator<'a> {
 }
 
 impl Pwx {
-    /**
-     * Open Database and check the given password
-     */
+
+    /// Open Database and check the given password
     pub fn open(path: &Path, password: &[u8]) -> Result<Pwx, Fail> {
         let mut file = match File::open(path) {
             Err(why) => return Err(Fail::UnableToOpen(why)),
@@ -360,7 +355,7 @@ impl Pwx {
         Ok(p)
     }
 
-    /**Returns true if the file HMAC is valid*/
+    /// Returns true if the file HMAC is valid
     pub fn is_authentic(&mut self) -> bool {
         if self.auth {
             return true;
@@ -377,9 +372,7 @@ impl Pwx {
         return self.auth;
     }
 
-    /**
-     * Add block to HMAC, unless this block was already added
-     */
+    /// Add block to HMAC, unless this block was already added
     fn hmac(&mut self, block: u64, data: &[u8]) {
         if block == self.hmac_block_next {
             self.crypto.hmac.input(data);

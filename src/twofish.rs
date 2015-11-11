@@ -1,4 +1,4 @@
-/* Rust wrapper for Niels Ferguson's libtwofish */
+/// Rust wrapper for Niels Ferguson's libtwofish
 
 extern crate libc;
 use self::libc::{c_uchar, c_uint, c_int};
