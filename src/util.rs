@@ -4,7 +4,7 @@ use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use std::ascii::AsciiExt;
 use std::io;
-use std::path::{PathBuf,Path};
+use std::path::PathBuf;
 use std::env::current_dir;
 use std::io::Error as IoError;
 
