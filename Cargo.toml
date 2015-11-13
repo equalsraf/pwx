@@ -11,6 +11,7 @@ uuid = "0.1"
 docopt = "0.6"
 rustc-serialize = "0.3"
 rpassword = "0.1"
+secstr = "0.2"
 
 [build-dependencies]
 gcc = "0.3"

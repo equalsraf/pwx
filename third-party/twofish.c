@@ -172,6 +172,7 @@
  */
 #include <string.h>     /* for memset(), memcpy(), and memcmp() */
 #include "twofish.h"
+#include "twofish_checks.h"
 
 
 /*

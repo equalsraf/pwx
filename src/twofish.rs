@@ -1,39 +1,27 @@
 /// Rust wrapper for Niels Ferguson's libtwofish
 
 extern crate libc;
-use self::libc::{c_uchar, c_uint, c_int};
+extern crate secstr;
+use self::libc::{c_uchar, c_int, c_void};
+use self::secstr::SecStr;
 
-#[repr(C)]
-struct Twofish_key {
-    s: [[c_uint; 256]; 4],
-    k: [c_uint; 40],
-}
+const TWOFISH_KEYLEN: usize = 4256;
 
 pub struct Key {
-    k: Twofish_key,
-}
-
-impl Drop for Key {
-    fn drop(&mut self) {
-        self.k.s = [[0; 256]; 4];
-        self.k.k = [0; 40];
-    }
+    k: SecStr,
 }
 
 extern "C" {
     fn Twofish_initialise();
-    fn Twofish_prepare_key(data: *const c_uchar, len: c_int, key: *mut Twofish_key);
-    fn Twofish_encrypt(key: *const Twofish_key, data_in: *const c_uchar, data_out: *mut c_uchar);
-    fn Twofish_decrypt(key: *const Twofish_key, data_in: *const c_uchar, data_out: *mut c_uchar);
+    fn Twofish_prepare_key(data: *const c_uchar, len: c_int, key: *mut c_void);
+    fn Twofish_encrypt(key: *const c_void, data_in: *const c_uchar, data_out: *mut c_uchar);
+    fn Twofish_decrypt(key: *const c_void, data_in: *const c_uchar, data_out: *mut c_uchar);
 }
 
 impl Key {
 
     fn nil() -> Key {
-        Key {k: Twofish_key{
-            s: [[0; 256]; 4],
-            k: [0; 40]
-        }}
+        Key { k: SecStr::from(vec![0u8; TWOFISH_KEYLEN]) }
     }
 
     pub fn new(data_in: &[u8]) -> Option<Key> {
@@ -44,7 +32,8 @@ impl Key {
         let mut k = Key::nil();
         unsafe {
             Twofish_initialise();
-            Twofish_prepare_key(data_in.as_ptr(), data_in.len() as c_int, &mut k.k);
+            Twofish_prepare_key(data_in.as_ptr(), data_in.len() as c_int,
+                    k.k.unsecure_mut().as_mut_ptr() as *mut c_void);
         }
         Some(k)
     }
@@ -54,7 +43,8 @@ impl Key {
             panic!("Invalid twofish block size");
         }
         unsafe {
-            Twofish_decrypt(&self.k, data_in.as_ptr(), out.as_mut_ptr());
+            Twofish_decrypt(self.k.unsecure().as_ptr() as *const c_void,
+                            data_in.as_ptr(), out.as_mut_ptr());
         }
     }
 
@@ -63,7 +53,8 @@ impl Key {
             panic!("Invalid twofish block size");
         }
         unsafe {
-            Twofish_encrypt(&self.k, data_in.as_ptr(), out.as_mut_ptr());
+            Twofish_encrypt(self.k.unsecure().as_ptr() as *const c_void,
+                            data_in.as_ptr(), out.as_mut_ptr());
         }
     }
 
