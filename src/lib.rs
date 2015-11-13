@@ -2,6 +2,7 @@
 //! PWS3 database
 //!
 extern crate crypto;
+extern crate secstr;
 
 use std::fs::File;
 use std::path::Path;
@@ -14,6 +15,7 @@ use crypto::digest::Digest;
 use crypto::hmac::Hmac;
 use crypto::mac::{Mac,MacResult};
 use std::cmp::min;
+use secstr::SecStr;
 
 mod twofish;
 use twofish::Key;
@@ -122,7 +124,7 @@ pub struct Pwx {
 
 pub struct PwxIterator<'a> {
     db: &'a mut Pwx,
-    cbc_block: [u8; BLOCK_SIZE],
+    cbc_block: SecStr,
     next_block: u64,
 }
 
@@ -159,7 +161,7 @@ impl<'a> PwxIterator<'a> {
             Ok(pos) if pos < start => panic!("BUG invalid file position, before end of preamble."),
             Ok(pos) if (pos-start) % 16 != 0 => panic!("BUG invalid file position, not a multiple of block size"),
             Ok(pos) => Ok(PwxIterator {
-                cbc_block: db.crypto.iv,
+                cbc_block: SecStr::from(&db.crypto.iv[..]),
                 db: db,
                 next_block: ((pos as u64)-start)/16,
             }),
@@ -175,8 +177,8 @@ impl<'a> PwxIterator<'a> {
         self.db.crypto.key_k.decrypt(in_data, out);
 
         for i in 0..BLOCK_SIZE {
-            out[i] ^= self.cbc_block[i];
-            self.cbc_block[i] = in_data[i];
+            out[i] ^= self.cbc_block.unsecure()[i];
+            self.cbc_block.unsecure_mut()[i] = in_data[i];
         }
     }
 
@@ -316,19 +318,19 @@ impl Pwx {
 
         let pline_key = Key::new(&stretched).unwrap();
         // Decrypt K stored in blocks B1+B2
-        let mut k_bin: [u8; BLOCK_SIZE*2] = [0; BLOCK_SIZE*2];
+        let mut k_bin = SecStr::new(vec![0; BLOCK_SIZE*2]);
         let (b1, rest) = rest.split_at(BLOCK_SIZE);
-        pline_key.decrypt(b1, &mut k_bin);
+        pline_key.decrypt(b1, k_bin.unsecure_mut());
         let (b2, rest) = rest.split_at(BLOCK_SIZE);
-        pline_key.decrypt(b2, &mut k_bin[BLOCK_SIZE..]);
-        let key_k = Key::new(&k_bin).unwrap();
+        pline_key.decrypt(b2, &mut k_bin.unsecure_mut()[BLOCK_SIZE..]);
+        let key_k = Key::new(k_bin.unsecure()).unwrap();
         
         // Decrypt L stored in blocks B3+B4
-        let mut l_bin: [u8; BLOCK_SIZE*2] = [0; BLOCK_SIZE*2];
+        let mut l_bin = SecStr::new(vec![0; BLOCK_SIZE*2]);
         let (b3, rest) = rest.split_at(BLOCK_SIZE);
-        pline_key.decrypt(b3, &mut l_bin);
+        pline_key.decrypt(b3, l_bin.unsecure_mut());
         let (b4, rest) = rest.split_at(BLOCK_SIZE);
-        pline_key.decrypt(b4, &mut l_bin[BLOCK_SIZE..]);
+        pline_key.decrypt(b4, &mut l_bin.unsecure_mut()[BLOCK_SIZE..]);
 
         // IV for CBC
         let (iv, _) = rest.split_at(BLOCK_SIZE);
@@ -337,7 +339,8 @@ impl Pwx {
             arr[i] = iv[i];
         }
 
-        let hmac = Hmac::new(Sha256::new(), &l_bin);
+        // TODO: any way to lock this?
+        let hmac = Hmac::new(Sha256::new(), l_bin.unsecure());
 
         assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
         let p = Pwx{
