@@ -2,17 +2,15 @@ extern crate pwx;
 extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
-extern crate rpassword;
 
 use pwx::{Pwx,PwxIterator};
 use pwx::dbspec;
-use std::io::{Write,stdout,stderr};
+use std::io::{Write,stderr};
 use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
-use pwx::util::{fuzzy_eq, from_time_t, abspath};
-use pwx::pinentry::PinEntry;
+use pwx::util::{fuzzy_eq, from_time_t, abspath, get_password_from_user};
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -37,35 +35,6 @@ struct Args {
     flag_no_pinentry: bool,
 }
 
-/// Get user master password.
-///
-/// If pinentry is available use it, otherwise fallback
-/// to reading user password from the console.
-///
-/// Returns None if pinentry failed to retrieve a password.
-/// May panic if it can't read a password from the terminal.
-fn get_password_from_user(description: &str, args: &Args) -> Option<String> {
-
-    // If available use pinentry to get the user password
-    if !args.flag_no_pinentry {
-        if let Ok(mut pe) = PinEntry::new() {
-            match pe.set_description(description)
-                .set_title("pwx")
-                .set_prompt("Password")
-                .getpin() {
-                    Ok(pass) => return Some(pass),
-                    Err(_) => return None,
-                }
-        }
-    }
-
-    // Get password from terminal
-    println!("{}", description);
-    print!("Password: ");
-    stdout().flush().unwrap();
-    Some(rpassword::read_password().ok().expect("Unable to read password from console"))
-}
-
 /// Get password
 /// 1. If --pass-interactive read from console
 /// 2. If PWX_PASSWORD is set use it
@@ -75,7 +44,7 @@ fn get_password_from_user(description: &str, args: &Args) -> Option<String> {
 fn get_password(args: &Args, description: &str) -> Option<String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
-        get_password_from_user(description, args)
+        get_password_from_user(description, args.flag_no_pinentry)
     } else {
         Some(var.unwrap())
     }

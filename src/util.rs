@@ -1,4 +1,6 @@
 
+extern crate rpassword;
+
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use super::SHA256_SIZE;
@@ -7,6 +9,8 @@ use std::io;
 use std::path::PathBuf;
 use std::env::current_dir;
 use std::io::Error as IoError;
+use std::io::{Write,stdout};
+use super::pinentry::PinEntry;
 
 /// Generate the SHA-256 value of a password after several rounds of stretching.
 /// [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
@@ -117,6 +121,35 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf,IoError> {
             Err(err) => Err(err),
         }
     }
+}
+
+/// Get user master password.
+///
+/// If pinentry is available use it, otherwise fallback
+/// to reading user password from the console.
+///
+/// Returns None if pinentry failed to retrieve a password.
+/// May panic if it can't read a password from the terminal.
+pub fn get_password_from_user(description: &str, skip_pinentry: bool) -> Option<String> {
+
+    // If available use pinentry to get the user password
+    if !skip_pinentry {
+        if let Ok(mut pe) = PinEntry::new() {
+            match pe.set_description(description)
+                .set_title("pwx")
+                .set_prompt("Password")
+                .getpin() {
+                    Ok(pass) => return Some(pass),
+                    Err(_) => return None,
+                }
+        }
+    }
+
+    // Get password from terminal
+    println!("{}", description);
+    print!("Password: ");
+    stdout().flush().unwrap();
+    Some(rpassword::read_password().ok().expect("Unable to read password from console"))
 }
 
 #[cfg(test)]
