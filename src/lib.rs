@@ -7,7 +7,6 @@ extern crate byteorder;
 
 use std::fs::File;
 use std::path::Path;
-use std::error::Error;
 use std::io;
 use std::io::Seek;
 use std::fmt;
@@ -89,7 +88,15 @@ pub enum Fail {
     InvalidIterationCount,
     WrongPassword,
     AuthenticationFailed,
+    UnableToInitializeTwofishKey,
+    InvalidSalt,
     EOF,
+}
+
+impl From<io::Error> for Fail {
+    fn from(err: io::Error) -> Self {
+        Fail::ReadError(err)
+    }
 }
 
 impl fmt::Display for Fail {
@@ -101,6 +108,8 @@ impl fmt::Display for Fail {
             Fail::InvalidIterationCount => fmt.write_str("Invalid DB, iteration count is too low"),
             Fail::WrongPassword => fmt.write_str("Wrong Password for DB"),
             Fail::AuthenticationFailed => fmt.write_str("HMAC validation failed, the file has been tampered!"),
+            Fail::UnableToInitializeTwofishKey => fmt.write_str("libtwofish failed to initialize a key from the given data"),
+            Fail::InvalidSalt => fmt.write_str("Salt is too short"),
             Fail::EOF => fmt.write_str("EOF"),
         }
     }
@@ -148,10 +157,7 @@ impl<'a> PwxIterator<'a> {
             Ok(r) => r,
         };
 
-        match r.db.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64)) {
-            Err(err) => return Err(Fail::ReadError(err)),
-            Ok(_) => (),
-        }
+        try!(r.db.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64)));
         r.next_block = 0;
         Ok(r)
     }
@@ -223,8 +229,8 @@ impl<'a> PwxIterator<'a> {
         }
 
         let fieldtype = plaintext[4];
-        let fieldlen = plaintext.as_ref().read_u32::<LittleEndian>()
-                        .unwrap() as usize;
+        let fieldlen = try!(plaintext.as_ref().read_u32::<LittleEndian>())
+                        as usize;
         let mut data: Vec<u8> = Vec::new();
         data.reserve(fieldlen);
 
@@ -285,10 +291,7 @@ impl Pwx {
         };
 
         let mut preamble: [u8; PREAMBLE_SIZE] = [0;PREAMBLE_SIZE];
-        match read_all(&mut file, &mut preamble) {
-            Err(err) => return Err(Fail::ReadError(err)),
-            _ => (),
-        }
+        try!(read_all(&mut file, &mut preamble));
 
         let (tag, rest) = preamble.split_at(4);
         if b"PWS3" != tag {
@@ -301,8 +304,7 @@ impl Pwx {
         // 32bit iteration count(ITER)
         let (iter_bin, rest) = rest.split_at(4);
 
-        let itercount = iter_bin.as_ref().read_u32::<LittleEndian>()
-                                .unwrap();
+        let itercount = try!(iter_bin.as_ref().read_u32::<LittleEndian>());
         if itercount < 2048 {
             return Err(Fail::InvalidIterationCount)
         }
@@ -311,7 +313,10 @@ impl Pwx {
         // the password
         let (h_pline, rest) = rest.split_at(SHA256_SIZE);
 
-        let stretched = stretch_pass(salt, password, itercount).unwrap();
+        let stretched = match stretch_pass(salt, password, itercount) {
+            None => return Err(Fail::InvalidSalt),
+            Some(k) => k,
+        };
         let mut stretched_hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
         let mut sha = Sha256::new();
         sha.input(&stretched);
@@ -321,14 +326,20 @@ impl Pwx {
             return Err(Fail::WrongPassword)
         }
 
-        let pline_key = Key::new(&stretched).unwrap();
+        let pline_key = match Key::new(&stretched) {
+            None => return Err(Fail::UnableToInitializeTwofishKey),
+            Some(k) => k,
+        };
         // Decrypt K stored in blocks B1+B2
         let mut k_bin = SecStr::new(vec![0; BLOCK_SIZE*2]);
         let (b1, rest) = rest.split_at(BLOCK_SIZE);
         pline_key.decrypt(b1, k_bin.unsecure_mut());
         let (b2, rest) = rest.split_at(BLOCK_SIZE);
         pline_key.decrypt(b2, &mut k_bin.unsecure_mut()[BLOCK_SIZE..]);
-        let key_k = Key::new(k_bin.unsecure()).unwrap();
+        let key_k = match Key::new(&k_bin.unsecure()) {
+            None => return Err(Fail::UnableToInitializeTwofishKey),
+            Some(k) => k,
+        };
         
         // Decrypt L stored in blocks B3+B4
         let mut l_bin = SecStr::new(vec![0; BLOCK_SIZE*2]);
@@ -347,7 +358,7 @@ impl Pwx {
         // TODO: any way to lock this?
         let hmac = Hmac::new(Sha256::new(), l_bin.unsecure());
 
-        assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
+        debug_assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
         let p = Pwx{
             auth: false,
             iter: 2048,

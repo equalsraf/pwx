@@ -14,7 +14,9 @@ use std::io::{Write,stdout};
 use super::pinentry::PinEntry;
 use byteorder::{LittleEndian, ReadBytesExt};
 
-/// Generate the SHA-256 value of a password after several rounds of stretching.
+/// Generate the SHA-256 value of a password after several rounds of
+/// stretching. If the salt is too short, this returns None.
+///
 /// [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
 pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_SIZE]> {
 
