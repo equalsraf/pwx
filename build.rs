@@ -2,7 +2,6 @@ extern crate gcc;
 
 use std::fs::File;
 use std::io::Write;
-use std::io::Read;
 
 /// Convert docopt segment to markdown
 ///

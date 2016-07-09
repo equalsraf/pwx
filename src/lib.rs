@@ -361,7 +361,7 @@ impl Pwx {
         debug_assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
         let p = Pwx{
             auth: false,
-            iter: 2048,
+            iter: itercount,
             file: file,
             hmac_block_next: 0,
             crypto: Box::new(PwxCrypto {
