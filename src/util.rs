@@ -1,5 +1,6 @@
 
 extern crate rpassword;
+extern crate byteorder;
 
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
@@ -11,6 +12,7 @@ use std::env::current_dir;
 use std::io::Error as IoError;
 use std::io::{Write,stdout};
 use super::pinentry::PinEntry;
+use byteorder::{LittleEndian, ReadBytesExt};
 
 /// Generate the SHA-256 value of a password after several rounds of stretching.
 /// [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
@@ -34,32 +36,6 @@ pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_S
     Some(hash)
 }
 
-/// Convert 4 byte slice into u32 (from little endian)
-pub fn from_le32(b: &[u8]) -> Option<u32> {
-    if b.len() < 4 {
-        return None
-    }
-    Some(((b[3] as u32) << 24)
-            + ((b[2] as u32) << 16)
-            + ((b[1] as u32) << 8)
-            + ((b[0] as u32)))
-}
-
-/// Convert 8 byte slice into u64 (from little endian)
-pub fn from_le64(b: &[u8]) -> Option<u64> {
-    if b.len() < 8 {
-        return None
-    }
-    Some(((b[7] as u64) << 56)
-            + ((b[6] as u64) << 48)
-            + ((b[5] as u64) << 40)
-            + ((b[4] as u64) << 32)
-            + ((b[3] as u64) << 24)
-            + ((b[2] as u64) << 16)
-            + ((b[1] as u64) << 8)
-            + ((b[0] as u64)))
-}
-
 /// Matching function for filters - this behaves as
 /// a case insensitive substring find. Except it
 /// returns false if any of the arguments is empty.
@@ -75,14 +51,14 @@ pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
     h.find(&n).is_some()
 }
 
-
 /// Read binary data as time_t, i.e. decode 32bit or 64bit sequences
 /// as unsigned little endian. [sec. 3.1.3]
 pub fn from_time_t(b: &[u8]) -> Option<u64> {
+    let mut b_r = b;
     if b.len() == 4 {
-        from_le32(b).map(|val| val as u64)
+        b_r.read_u32::<LittleEndian>().map(|val| val as u64).ok()
     } else if b.len() == 8 {
-        from_le64(b)
+        b_r.read_u64::<LittleEndian>().map(|val| val as u64).ok()
     } else {
         None
     }
@@ -154,46 +130,7 @@ pub fn get_password_from_user(description: &str, skip_pinentry: bool) -> Option<
 
 #[cfg(test)]
 mod tests {
-    use super::from_le32;
-    use super::from_le64;
     use super::fuzzy_eq;
-
-    #[test]
-    fn test_from_le32() {
-        assert_eq!(from_le32(b"\x00\x00\x00\x00").unwrap(), 0);
-        assert_eq!(from_le32(b"\x01\x00\x00\x00").unwrap(), 0x01);
-        assert_eq!(from_le32(b"\x00\x01\x00\x00").unwrap(), 0x0100);
-        assert_eq!(from_le32(b"\x00\x00\x01\x00").unwrap(), 0x010000);
-        assert_eq!(from_le32(b"\x00\x00\x00\x01").unwrap(), 0x01000000);
-        assert_eq!(from_le32(b"\xff\xff\xff\xff").unwrap(), 0xffffffff);
-    
-        assert_eq!(from_le32(b""), None);
-        assert_eq!(from_le32(b"\xff"), None);
-        assert_eq!(from_le32(b"\xff\xff"), None);
-        assert_eq!(from_le32(b"\xff\xff\xff"), None);
-    }
-
-    #[test]
-    fn test_from_le64() {
-        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x00\x00").unwrap(), 0);
-        assert_eq!(from_le64(b"\x01\x00\x00\x00\x00\x00\x00\x00").unwrap(), 0x01);
-        assert_eq!(from_le64(b"\x00\x01\x00\x00\x00\x00\x00\x00").unwrap(), 0x0100);
-        assert_eq!(from_le64(b"\x00\x00\x01\x00\x00\x00\x00\x00").unwrap(), 0x010000);
-        assert_eq!(from_le64(b"\x00\x00\x00\x01\x00\x00\x00\x00").unwrap(), 0x01000000);
-        assert_eq!(from_le64(b"\x00\x00\x00\x00\x01\x00\x00\x00").unwrap(), 0x0100000000);
-        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x01\x00\x00").unwrap(), 0x010000000000);
-        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x01\x00").unwrap(), 0x01000000000000);
-        assert_eq!(from_le64(b"\x00\x00\x00\x00\x00\x00\x00\x01").unwrap(), 0x0100000000000000);
-        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff\xff\xff\xff").unwrap(), 0xffffffffffffffff);
-    
-        assert_eq!(from_le64(b""), None);
-        assert_eq!(from_le64(b"\xff"), None);
-        assert_eq!(from_le64(b"\xff\xff"), None);
-        assert_eq!(from_le64(b"\xff\xff\xff"), None);
-        assert_eq!(from_le64(b"\xff\xff\xff\xff"), None);
-        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff"), None);
-        assert_eq!(from_le64(b"\xff\xff\xff\xff\xff\xff"), None);
-    }
 
     #[test]
     fn test_fuzzy_eq() {

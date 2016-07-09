@@ -3,6 +3,7 @@
 //!
 extern crate crypto;
 extern crate secstr;
+extern crate byteorder;
 
 use std::fs::File;
 use std::path::Path;
@@ -16,12 +17,13 @@ use crypto::hmac::Hmac;
 use crypto::mac::{Mac,MacResult};
 use std::cmp::min;
 use secstr::SecStr;
+use byteorder::{LittleEndian, ReadBytesExt};
 
 mod twofish;
 use twofish::Key;
 
 pub mod util;
-use util::{from_le32,stretch_pass,read_all};
+use util::{stretch_pass,read_all};
 
 pub mod pinentry;
 
@@ -221,7 +223,8 @@ impl<'a> PwxIterator<'a> {
         }
 
         let fieldtype = plaintext[4];
-        let fieldlen = from_le32(&plaintext).unwrap() as usize;
+        let fieldlen = plaintext.as_ref().read_u32::<LittleEndian>()
+                        .unwrap() as usize;
         let mut data: Vec<u8> = Vec::new();
         data.reserve(fieldlen);
 
@@ -297,8 +300,10 @@ impl Pwx {
 
         // 32bit iteration count(ITER)
         let (iter_bin, rest) = rest.split_at(4);
-        let iter = from_le32(iter_bin).unwrap();
-        if iter < 2048 {
+
+        let itercount = iter_bin.as_ref().read_u32::<LittleEndian>()
+                                .unwrap();
+        if itercount < 2048 {
             return Err(Fail::InvalidIterationCount)
         }
 
@@ -306,7 +311,7 @@ impl Pwx {
         // the password
         let (h_pline, rest) = rest.split_at(SHA256_SIZE);
 
-        let stretched = stretch_pass(salt, password, iter).unwrap();
+        let stretched = stretch_pass(salt, password, itercount).unwrap();
         let mut stretched_hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
         let mut sha = Sha256::new();
         sha.input(&stretched);

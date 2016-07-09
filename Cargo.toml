@@ -12,6 +12,7 @@ docopt = "0.6"
 rustc-serialize = "0.3"
 rpassword = "0.2"
 secstr = "0.2"
+byteorder = "0.5"
 
 [build-dependencies]
 gcc = "0.3"
