@@ -201,7 +201,9 @@ fn real_main() -> i32 {
         let mut filter = ListFilter::new(&args);
         for (typ,val) in fields {
             match typ {
-                0x01 => uuid = Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string(),
+                0x01 => uuid = Uuid::from_bytes(val.as_ref())
+                    .unwrap_or(Uuid::nil())
+                    .hyphenated().to_string(),
                 0x03 => {
                     title = String::from_utf8_lossy(val.as_ref()).into_owned();
                 },
@@ -232,7 +234,9 @@ fn real_main() -> i32 {
         let fields = PwxIterator::from_start(&mut p).unwrap();
         for (typ,val) in fields {
             match typ {
-                0x01 => print!("{} ", Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string()),
+                0x01 => print!("{} ", Uuid::from_bytes(val.as_ref())
+                               .unwrap_or(Uuid::nil())
+                               .hyphenated().to_string()),
                 0x04 => print!("{} ", from_time_t(val.as_ref())
                                  .expect("Invalid time_t field contents")),
                 0x07 => print!("{} ", String::from_utf8_lossy(val.as_ref())),
@@ -261,7 +265,9 @@ fn real_main() -> i32 {
             match typ {
                 // UUID
                 0x01 => {
-                    uuid = Uuid::from_bytes(val.as_ref()).unwrap_or(Uuid::nil()).to_hyphenated_string();
+                    uuid = Uuid::from_bytes(val.as_ref())
+                        .unwrap_or(Uuid::nil())
+                        .hyphenated().to_string();
                     found = uuid == args.arg_uuid;
                 },
                 // Save field contents for later

@@ -7,10 +7,10 @@ build = "build.rs"
 rust-crypto = "0.2"
 libc = "0.2"
 matches = "0.1"
-uuid = "0.1"
+uuid = "0.2"
 docopt = "0.6"
 rustc-serialize = "0.3"
-rpassword = "0.1"
+rpassword = "0.2"
 secstr = "0.2"
 
 [build-dependencies]
