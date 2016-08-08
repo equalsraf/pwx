@@ -3,14 +3,14 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
 
-use pwx::{Pwx,PwxIterator};
-use pwx::dbspec;
+use pwx::{Pwx,PwxFieldIterator, Field};
 use std::io::{Write,stderr};
 use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
 use pwx::util::{fuzzy_eq, from_time_t, abspath, get_password_from_user};
+use std::str::from_utf8;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -50,83 +50,49 @@ fn get_password(args: &Args, description: &str) -> Option<String> {
     }
 }
 
-/// Filters for the 'list' command
-struct ListFilter<'a> {
-    m_url: bool,
-    m_group: bool,
-    m_username: bool,
-    m_title: bool,
+/// A filter to match multiple keywords
+///
+/// The default state is for the filter to be unmatched.
+/// Push content with 'push()', if it matches the keywords
+/// the filter will match.
+struct KeywordFilter<'a> {
     m_filter: Vec<bool>,
     args: &'a Args,
 }
 
-impl<'a> ListFilter<'a> {
-    fn new(args: &Args) -> ListFilter {
-        let mut f = ListFilter {
-            m_group: args.flag_group.is_empty(),
-            m_url: args.flag_url.is_empty(),
-            m_username: args.flag_username.is_empty(),
-            m_title: args.flag_title.is_empty(),
-            m_filter: Vec::new(),
+impl<'a> KeywordFilter<'a> {
+    fn new(args: &Args) -> KeywordFilter {
+        let mut f = KeywordFilter {
+            m_filter: Vec::with_capacity(args.arg_filter.len()),
             args: args,
         };
-        for _ in 0..args.arg_filter.len() {
-            f.m_filter.push(false);
-        }
+        f.m_filter.resize(args.arg_filter.len(), false);
         f
     }
 
-    fn match_filter(&mut self, val: &str) {
-        for i in 0..self.args.arg_filter.len() {
-            self.m_filter[i] = self.m_filter[i] || fuzzy_eq(&self.args.arg_filter[i], val);
-        }
-    }
+    /// Attempt to match this filter against a field
+    fn push(&mut self, field: &Field) {
+        let utf8 = match *field {
+            Field::Group(ref v) => from_utf8(v),
+            Field::Title(ref v) => from_utf8(v),
+            Field::Username(ref v) => from_utf8(v),
+            Field::Notes(ref v) => from_utf8(v),
+            Field::Password(_) => return,
+            Field::Url(ref v) => from_utf8(v),
+            _ => return,
+        };
 
-    /// Process field
-    fn process(&mut self, typ: u8, val: &[u8]) {
-        match typ {
-            0x02 => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.m_group = self.m_group || fuzzy_eq(&self.args.flag_group, s);
-                self.match_filter(s);
-            },
-            0x03 => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.m_title = self.m_title || fuzzy_eq(&self.args.flag_title, s);
-                self.match_filter(s);
-            },
-            0x04 => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.m_username = self.m_username || fuzzy_eq(&self.args.flag_username, s);
-                self.match_filter(s);
-            },
-            0x05 => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.match_filter(s);
-            },
-            0x0d => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.m_url = self.m_url || fuzzy_eq(&self.args.flag_url, s);
-                self.match_filter(s);
-            },
-            0x14 => {
-                let s = &String::from_utf8_lossy(val.as_ref());
-                self.match_filter(s);
-            },
-            0xff => *self = ListFilter::new(self.args),
-            _ => (),
-        }
-
-    }
-
-    /// Returns true if the record matches the filter
-    fn matched(&self) -> bool {
-        for f in self.m_filter.iter() {
-            if *f == false {
-                return false;
+        if let Ok(s) = utf8 {
+            for (idx, word) in self.args.arg_filter.iter()
+                    .enumerate() {
+                self.m_filter[idx] = self.m_filter[idx] || fuzzy_eq(&word, s);
             }
         }
-        self.m_group && self.m_url && self.m_username && self.m_title
+    }
+
+    /// Returns true if all the keywords matched
+    fn matched(&self) -> bool {
+        self.m_filter.iter().all(|v| *v)
     }
 }
 
@@ -191,47 +157,68 @@ fn real_main() -> i32 {
 
     if args.cmd_list || args.cmd_count {
         let mut count = 0;
-        let mut fields = PwxIterator::new(&mut p).unwrap();
-        fields.skip_record();
 
-        let mut uuid = String::new();
-        let mut title = String::new();
-        let mut username = String::new();
+        for record in p.iter().unwrap() {
+            let mut uuid = String::new();
+            let mut title = String::new();
+            let mut username = String::new();
 
-        let mut filter = ListFilter::new(&args);
-        for (typ,val) in fields {
-            match typ {
-                0x01 => uuid = Uuid::from_bytes(val.as_ref())
-                    .unwrap_or(Uuid::nil())
-                    .hyphenated().to_string(),
-                0x03 => {
-                    title = String::from_utf8_lossy(val.as_ref()).into_owned();
-                },
-                0x04 => {
-                    username = String::from_utf8_lossy(val.as_ref()).into_owned();
-                },
-                0xff => {
-                    if filter.matched() {
-                        if args.cmd_count {
-                            count += 1
-                        } else {
-                            println!("{} {}[{}]", uuid, title, username);
-                        }
-                        uuid = String::new();
-                        title = String::new();
-                        username = String::new();
+            // Field filters
+            let mut f_username = args.flag_username.is_empty();
+            let mut f_title = args.flag_title.is_empty();
+            let mut f_url = args.flag_url.is_empty();
+            let mut f_group = args.flag_group.is_empty();
+
+            // Keyword filters
+            let mut f_keywords = KeywordFilter::new(&args);
+
+            for field in record {
+                f_keywords.push(&field);
+                match field {
+                    Field::Uuid(_) => uuid = format!("{}", field),
+                    Field::Title(_) => {
+                        title = format!("{}", field);
+                        f_title = f_title || fuzzy_eq(&args.flag_title, &title);
                     }
+                    Field::Username(_) => {
+                        username = format!("{}", field);
+                        f_username = f_username || fuzzy_eq(&args.flag_username, &username);
+                    }
+                    Field::Url(_) => {
+                        let url = format!("{}", field);
+                        f_url = f_url || fuzzy_eq(&args.flag_url, &url);
+                    }
+                    Field::Group(_) => {
+                        let group = format!("{}", field);
+                        f_group = f_group || fuzzy_eq(&args.flag_group, &group);
+                    }
+                    _ => (),
                 }
-                _ => (),
             }
-            filter.process(typ, &val);
+
+            if !f_username || !f_title || !f_url || !f_group {
+                // Skip, record filter did not match
+                continue;
+            }
+
+            if !f_keywords.matched() {
+                // Skip, generic keyword filter did not match
+                continue;
+            }
+
+            if args.cmd_count {
+                count += 1;
+            } else {
+                println!("{} {}[{}]", uuid, title, username);
+            }
         }
+
         if args.cmd_count {
             println!("{}", count);
         }
     } else if args.cmd_info {
 
-        let fields = PwxIterator::new(&mut p).unwrap();
+        let fields = PwxFieldIterator::new(&mut p).unwrap();
         for (typ,val) in fields {
             match typ {
                 0x01 => print!("{} ", Uuid::from_bytes(val.as_ref())
@@ -248,47 +235,32 @@ fn real_main() -> i32 {
             }
         }
     } else if args.cmd_get {
+        let get_uuid = Field::Uuid(Uuid::parse_str(&args.arg_uuid).expect("Invalid UUID").as_bytes().to_vec());
 
-        let has_ftype = dbspec::field2type(&args.arg_fieldname);
-        if has_ftype.is_none() {
-            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
-            return -1;
-        }
-        let mtype = has_ftype.unwrap();
+        for record in p.iter().unwrap() {
+            // Find record by UUID
+            let mut found = false;
+            for field in &record {
+                if *field == get_uuid {
+                    found = true;
+                    break;
+                }
+            }
 
-        let mut uuid;
-        let mut data = String::new();
-        let mut found = false;
-        let mut fields = PwxIterator::new(&mut p).unwrap();
-        fields.skip_record();
-        for (typ,val) in fields {
-            match typ {
-                // UUID
-                0x01 => {
-                    uuid = Uuid::from_bytes(val.as_ref())
-                        .unwrap_or(Uuid::nil())
-                        .hyphenated().to_string();
-                    found = uuid == args.arg_uuid;
-                },
-                // Save field contents for later
-                typ if typ == mtype => {
-                    data = if dbspec::is_time_t(typ) {
-                        format!("{}", from_time_t(val.as_ref()).expect("Invalid time_t value"))
-                    } else {
-                        String::from_utf8_lossy(val.as_ref()).into_owned()
-                    }
-                },
-                0xff if found == true  => {
-                    if data.is_empty() {
-                        let _ = writeln!(stderr(), "Field {} was not found", args.arg_fieldname);
-                        return -1;
-                    } else {
-                        println!("{}", data);
+            if !found {
+                continue;
+            }
+
+            // Get field value
+            for field in &record {
+                if let Some(name) = field.name() {
+                    if name == args.arg_fieldname {
+                        println!("{}", field);
                         return 0;
                     }
-                },
-                _ => (),
+                }
             }
+            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
         }
 
         let _ = writeln!(stderr(), "Unknown record: {}", args.arg_uuid);

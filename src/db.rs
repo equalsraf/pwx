@@ -1,0 +1,107 @@
+
+use std::fmt;
+use super::util;
+use super::uuid::Uuid;
+use super::secstr::SecStr;
+
+#[derive(PartialEq)]
+pub enum Field {
+    Uuid(Vec<u8>),
+    Group(Vec<u8>),
+    Title(Vec<u8>),
+    Username(Vec<u8>),
+    Notes(Vec<u8>),
+    Password(Vec<u8>),
+    CreationTime(u64),
+    PasswordModificationTime(u64),
+    LastAccessTime(u64),
+    Url(Vec<u8>),
+    Command(Vec<u8>),
+    Email(Vec<u8>),
+    Unknown(u8, Vec<u8>),
+}
+
+impl Field {
+    pub fn from(typ: u8, val: Vec<u8>) -> Self {
+        match typ {
+            0x01 => Field::Uuid(val),
+            0x02 => Field::Group(val),
+            0x03 => Field::Title(val),
+            0x04 => Field::Username(val),
+            0x05 => Field::Notes(val),
+            0x06 => Field::Password(val),
+            0x07 => Field::CreationTime(util::from_time_t(&val).unwrap_or(0)),
+            0x08 => Field::PasswordModificationTime(util::from_time_t(&val).unwrap_or(0)),
+            0x09 => Field::LastAccessTime(util::from_time_t(&val).unwrap_or(0)),
+            0x0d => Field::Url(val),
+            0x12 => Field::Command(val),
+            0x14 => Field::Email(val),
+            _ => Field::Unknown(typ, val),
+        }
+    }
+
+    /// Return human readable field name
+    pub fn name(&self) -> Option<&str> {
+        match *self {
+            Field::Uuid(_) => Some("uuid"),
+            Field::Group(_) => Some("group"),
+            Field::Title(_) => Some("title"),
+            Field::Username(_) => Some("username"),
+            Field::Notes(_) => Some("notes"),
+            Field::Password(_) => Some("password"),
+            Field::CreationTime(_) => Some("ctime"),
+            Field::LastAccessTime(_) => Some("atime"),
+            Field::Url(_) => Some("url"),
+            Field::Email(_) => Some("email"),
+            Field::Command(_) => Some("command"),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Field::Uuid(ref val) => {
+                let uuid = Uuid::from_bytes(val.as_ref())
+                    .unwrap_or(Uuid::nil())
+                    .hyphenated().to_string();
+                fmt.write_str(&uuid)
+            }
+            Field::Group(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Title(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Username(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Notes(_) => fmt.write_str("[Notes ...]"),
+            Field::Password(_) => fmt.write_str("****"),
+            Field::CreationTime(ts) =>
+                write!(fmt, "{}", ts),
+            Field::PasswordModificationTime(ts) =>
+                write!(fmt, "{}", ts),
+            Field::LastAccessTime(ts) =>
+                write!(fmt, "{}", ts),
+            Field::Url(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Email(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Command(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Unknown(typ, _) => write!(fmt, "Unknown Field({})", typ),
+        }
+    }
+}
+

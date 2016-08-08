@@ -4,12 +4,14 @@
 extern crate crypto;
 extern crate secstr;
 extern crate byteorder;
+extern crate uuid;
 
 use std::fs::File;
 use std::path::Path;
 use std::io;
 use std::io::Seek;
 use std::fmt;
+use std::collections::HashMap;
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use crypto::hmac::Hmac;
@@ -25,60 +27,12 @@ pub mod util;
 use util::{stretch_pass,read_all};
 
 pub mod pinentry;
+pub mod db;
+pub use db::{Field};
 
 const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
 const BLOCK_SIZE:usize = 16;
-
-pub mod dbspec {
-    pub const GROUP: u8 = 0x02;
-    pub const TITLE: u8 = 0x03;
-    pub const USERNAME: u8 = 0x04;
-    pub const NOTES: u8 = 0x05;
-    pub const PASSWORD: u8 = 0x06;
-    pub const CTIME: u8 = 0x07;
-    pub const ATIME: u8 = 0x09;
-    pub const MTIME: u8 = 0x0c;
-    pub const URL: u8 = 0x0d;
-    pub const COMMAND: u8 = 0x12;
-    pub const EMAIL: u8 = 0x14;
-
-    const FIELDNAMES: &'static [(&'static str, u8)] = &[
-        ("group", GROUP),
-        ("title", TITLE),
-        ("username", USERNAME),
-        ("notes", NOTES),
-        ("password", PASSWORD),
-        ("ctime", CTIME),
-        ("atime", ATIME),
-        ("mtime", MTIME),
-        ("url", URL),
-        ("command", COMMAND),
-        ("email", EMAIL),
-        ];
-
-    /// True if the field type is a time_t field
-    pub fn is_time_t(typ: u8) -> bool {
-        [CTIME,ATIME,MTIME].contains(&typ)
-    }
-
-    /// True if the field type is an UTF8 string
-    pub fn is_str(typ: u8) -> bool {
-        [GROUP,TITLE,USERNAME,NOTES,PASSWORD,URL,COMMAND,EMAIL].contains(&typ)
-    }
-
-    /// Return type for field name
-    pub fn field2type(name: &str) -> Option<u8>
-    {
-        for field in FIELDNAMES {
-            if name == field.0 {
-                return Some(field.1)
-            }
-        }
-        None
-    }
-}
-
 
 #[derive(Debug)]
 pub enum Fail {
@@ -133,13 +87,52 @@ pub struct Pwx {
     // TODO: path
 }
 
-pub struct PwxIterator<'a> {
+/// Iterate over all dabase records (excluding the db header).
+pub struct PwxRecordIterator<'a> {
+    inner: PwxFieldIterator<'a>,
+}
+
+impl<'a> Iterator for PwxRecordIterator<'a> {
+    type Item = Vec<Field>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut rec = Vec::new();
+
+        for (typ,val) in &mut self.inner {
+            if typ == 0xff {
+                break;
+            }
+
+            rec.push(db::Field::from(typ, val));
+        }
+
+        if rec.is_empty() {
+            None
+        } else {
+            Some(rec)
+        }
+    }
+}
+
+impl<'a> PwxRecordIterator<'a> {
+    pub fn new(db: &'a mut Pwx) -> Result<Self,Fail> {
+        let mut inner = try!(PwxFieldIterator::new(db));
+        inner.skip_record();
+        Ok(PwxRecordIterator {
+            inner: inner
+        })
+    }
+}
+
+/// Iterator over all the fields in the database. This might
+/// be a bit too low level, see `PwxRecordIterator` for a higher
+/// level record iterator.
+pub struct PwxFieldIterator<'a> {
     db: &'a mut Pwx,
     cbc_block: SecStr,
     next_block: u64,
 }
 
-impl<'a> Iterator for PwxIterator<'a> {
+impl<'a> Iterator for PwxFieldIterator<'a> {
     type Item = (u8,Vec<u8>);
     fn next(&mut self) -> Option<Self::Item> {
         match self.read_field() {
@@ -149,11 +142,11 @@ impl<'a> Iterator for PwxIterator<'a> {
     }
 }
 
-impl<'a> PwxIterator<'a> {
-    pub fn new(db: &mut Pwx) -> Result<PwxIterator,Fail> {
+impl<'a> PwxFieldIterator<'a> {
+    pub fn new(db: &mut Pwx) -> Result<PwxFieldIterator,Fail> {
         let start = PREAMBLE_SIZE as u64;
         try!(db.file.seek(io::SeekFrom::Start(start)));
-        Ok(PwxIterator {
+        Ok(PwxFieldIterator {
             cbc_block: SecStr::from(&db.crypto.iv[..]),
             db: db,
             next_block: 0,
@@ -364,7 +357,7 @@ impl Pwx {
             return true;
         }
         {
-            let fields = match PwxIterator::new(self) {
+            let fields = match PwxFieldIterator::new(self) {
                 Err(_) => return false,
                 Ok(f) => f,
             };
@@ -381,6 +374,10 @@ impl Pwx {
             self.crypto.hmac.input(data);
             self.hmac_block_next += 1;
         }
+    }
+
+    pub fn iter(&mut self) -> Result<PwxRecordIterator, Fail> {
+        PwxRecordIterator::new(self)
     }
 }
 
