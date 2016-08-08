@@ -150,30 +150,14 @@ impl<'a> Iterator for PwxIterator<'a> {
 }
 
 impl<'a> PwxIterator<'a> {
-
-    pub fn from_start(db: &mut Pwx) -> Result<PwxIterator,Fail> {
-        let mut r = match PwxIterator::new(db) {
-            Err(err) => return Err(err),
-            Ok(r) => r,
-        };
-
-        try!(r.db.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64)));
-        r.next_block = 0;
-        Ok(r)
-    }
-
     pub fn new(db: &mut Pwx) -> Result<PwxIterator,Fail> {
         let start = PREAMBLE_SIZE as u64;
-        match db.file.seek(io::SeekFrom::Current(0)) {
-            Err(err) => return Err(Fail::ReadError(err)),
-            Ok(pos) if pos < start => panic!("BUG invalid file position, before end of preamble."),
-            Ok(pos) if (pos-start) % 16 != 0 => panic!("BUG invalid file position, not a multiple of block size"),
-            Ok(pos) => Ok(PwxIterator {
-                cbc_block: SecStr::from(&db.crypto.iv[..]),
-                db: db,
-                next_block: ((pos as u64)-start)/16,
-            }),
-        }
+        try!(db.file.seek(io::SeekFrom::Start(start)));
+        Ok(PwxIterator {
+            cbc_block: SecStr::from(&db.crypto.iv[..]),
+            db: db,
+            next_block: 0,
+        })
     }
 
     /// Decrypt CBC block

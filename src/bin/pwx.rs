@@ -191,7 +191,7 @@ fn real_main() -> i32 {
 
     if args.cmd_list || args.cmd_count {
         let mut count = 0;
-        let mut fields = PwxIterator::from_start(&mut p).unwrap();
+        let mut fields = PwxIterator::new(&mut p).unwrap();
         fields.skip_record();
 
         let mut uuid = String::new();
@@ -231,7 +231,7 @@ fn real_main() -> i32 {
         }
     } else if args.cmd_info {
 
-        let fields = PwxIterator::from_start(&mut p).unwrap();
+        let fields = PwxIterator::new(&mut p).unwrap();
         for (typ,val) in fields {
             match typ {
                 0x01 => print!("{} ", Uuid::from_bytes(val.as_ref())
@@ -259,7 +259,7 @@ fn real_main() -> i32 {
         let mut uuid;
         let mut data = String::new();
         let mut found = false;
-        let mut fields = PwxIterator::from_start(&mut p).unwrap();
+        let mut fields = PwxIterator::new(&mut p).unwrap();
         fields.skip_record();
         for (typ,val) in fields {
             match typ {
