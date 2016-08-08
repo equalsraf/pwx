@@ -80,8 +80,14 @@ impl fmt::Display for Field {
                 let s = String::from_utf8_lossy(v);
                 fmt.write_str(&s)
             }
-            Field::Notes(_) => fmt.write_str("[Notes ...]"),
-            Field::Password(_) => fmt.write_str("****"),
+            Field::Notes(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
+            Field::Password(ref v)  => {
+                let s = String::from_utf8_lossy(v);
+                fmt.write_str(&s)
+            }
             Field::CreationTime(ref val) => {
                 let ts = util::from_time_t(&val).unwrap_or(0);
                 write!(fmt, "{}", ts)
