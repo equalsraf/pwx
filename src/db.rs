@@ -12,9 +12,9 @@ pub enum Field {
     Username(Vec<u8>),
     Notes(Vec<u8>),
     Password(Vec<u8>),
-    CreationTime(u64),
-    PasswordModificationTime(u64),
-    LastAccessTime(u64),
+    CreationTime(Vec<u8>),
+    PasswordModificationTime(Vec<u8>),
+    LastAccessTime(Vec<u8>),
     Url(Vec<u8>),
     Command(Vec<u8>),
     Email(Vec<u8>),
@@ -30,9 +30,9 @@ impl Field {
             0x04 => Field::Username(val),
             0x05 => Field::Notes(val),
             0x06 => Field::Password(val),
-            0x07 => Field::CreationTime(util::from_time_t(&val).unwrap_or(0)),
-            0x08 => Field::PasswordModificationTime(util::from_time_t(&val).unwrap_or(0)),
-            0x09 => Field::LastAccessTime(util::from_time_t(&val).unwrap_or(0)),
+            0x07 => Field::CreationTime(val),
+            0x08 => Field::PasswordModificationTime(val),
+            0x09 => Field::LastAccessTime(val),
             0x0d => Field::Url(val),
             0x12 => Field::Command(val),
             0x14 => Field::Email(val),
@@ -82,12 +82,18 @@ impl fmt::Display for Field {
             }
             Field::Notes(_) => fmt.write_str("[Notes ...]"),
             Field::Password(_) => fmt.write_str("****"),
-            Field::CreationTime(ts) =>
-                write!(fmt, "{}", ts),
-            Field::PasswordModificationTime(ts) =>
-                write!(fmt, "{}", ts),
-            Field::LastAccessTime(ts) =>
-                write!(fmt, "{}", ts),
+            Field::CreationTime(ref val) => {
+                let ts = util::from_time_t(&val).unwrap_or(0);
+                write!(fmt, "{}", ts)
+            }
+            Field::PasswordModificationTime(ref val) => {
+                let ts = util::from_time_t(&val).unwrap_or(0);
+                write!(fmt, "{}", ts)
+            }
+            Field::LastAccessTime(ref val) => {
+                let ts = util::from_time_t(&val).unwrap_or(0);
+                write!(fmt, "{}", ts)
+            }
             Field::Url(ref v)  => {
                 let s = String::from_utf8_lossy(v);
                 fmt.write_str(&s)
