@@ -270,9 +270,9 @@ fn real_main() -> i32 {
     return 0
 }
 
-// Rust set_exit_status cannot be used yet, the only way to
-// set an exit code to exit using exit(code) so we wrap the
-// main function like this
+// We want to make sure we exit only after all the destructors
+// are called, wait for real_main() to be done before actually
+// calling exit.
 fn main() {
     let exit_code = real_main();
     exit(exit_code);
