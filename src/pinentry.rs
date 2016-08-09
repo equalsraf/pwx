@@ -34,35 +34,37 @@ pub struct PinEntry {
 }
 
 impl PinEntry {
-    pub fn new() -> Result<PinEntry,PinEntryError> {
+    pub fn new() -> Result<PinEntry, PinEntryError> {
         match Command::new("pinentry")
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .spawn() {
-            Ok(mut c) => if c.stdin.is_none() || c.stdout.is_none() {
-                Err(PinEntryError::Other("Failed to setup stdin/out".to_owned()))
-            } else {
-                let mut p = PinEntry {
-                    pipe_w: c.stdin.take().unwrap(),
-                    pipe_r: BufReader::new(c.stdout.take().unwrap()),
-                    cmd: c,
-                    timeout: 0,
-                    description: String::new(),
-                    prompt: String::new(),
-                    title: String::new(),
-                };
-                // Wait for server response
-                match p.wait_response() {
-                    Ok(_) => Ok(p),
-                    Err(err) => Err(err),
+                  .stdin(Stdio::piped())
+                  .stdout(Stdio::piped())
+                  .stderr(Stdio::null())
+                  .spawn() {
+            Ok(mut c) => {
+                if c.stdin.is_none() || c.stdout.is_none() {
+                    Err(PinEntryError::Other("Failed to setup stdin/out".to_owned()))
+                } else {
+                    let mut p = PinEntry {
+                        pipe_w: c.stdin.take().unwrap(),
+                        pipe_r: BufReader::new(c.stdout.take().unwrap()),
+                        cmd: c,
+                        timeout: 0,
+                        description: String::new(),
+                        prompt: String::new(),
+                        title: String::new(),
+                    };
+                    // Wait for server response
+                    match p.wait_response() {
+                        Ok(_) => Ok(p),
+                        Err(err) => Err(err),
+                    }
                 }
-            },
+            }
             Err(err) => Err(PinEntryError::IoError(err)),
         }
     }
 
-    fn call(&mut self, command: &str) -> Result<CallResult,PinEntryError> {
+    fn call(&mut self, command: &str) -> Result<CallResult, PinEntryError> {
         match self.pipe_w.write_all(command.as_bytes()) {
             Err(err) => return Err(PinEntryError::IoError(err)),
             Ok(_) => (),
@@ -79,7 +81,7 @@ impl PinEntry {
         self.wait_response()
     }
 
-    fn wait_response(&mut self) -> Result<CallResult,PinEntryError> {
+    fn wait_response(&mut self) -> Result<CallResult, PinEntryError> {
         let msg;
         let mut data = String::new();
 
@@ -105,12 +107,13 @@ impl PinEntry {
                 data.push_str(&resp[2..]);
             } else if resp.starts_with("S ") {
             } else if resp.starts_with("INQUIRE") {
-                return Err(PinEntryError::Other("Received unsupported INQUIRE from pinentry".to_owned()))
+                return Err(PinEntryError::Other("Received unsupported INQUIRE from pinentry"
+                                                    .to_owned()));
             } else if resp.starts_with("#") {
                 // Comments - ignore
             } else {
                 // Error
-                return Err(PinEntryError::Other("Unsupported response from pinentry".to_owned()))
+                return Err(PinEntryError::Other("Unsupported response from pinentry".to_owned()));
             }
         }
 
@@ -128,17 +131,17 @@ impl PinEntry {
         self
     }
 
-    pub fn set_prompt(&mut self, prompt: &str) -> &mut Self{
+    pub fn set_prompt(&mut self, prompt: &str) -> &mut Self {
         self.prompt = prompt.to_owned();
         self
     }
 
-    pub fn set_title(&mut self, title: &str) -> &mut Self{
+    pub fn set_title(&mut self, title: &str) -> &mut Self {
         self.title = title.to_owned();
         self
     }
 
-    pub fn getpin(&mut self) -> Result<String,PinEntryError> {
+    pub fn getpin(&mut self) -> Result<String, PinEntryError> {
         if self.timeout > 0 {
             let cmd = &format!("SETTIMEOUT {}", self.timeout);
             if let Err(err) = self.call(cmd) {

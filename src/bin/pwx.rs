@@ -3,8 +3,8 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
 
-use pwx::{Pwx,PwxFieldIterator, Field, Value};
-use std::io::{Write,stderr};
+use pwx::{Pwx, PwxFieldIterator, Field, Value};
+use std::io::{Write, stderr};
 use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
@@ -83,8 +83,10 @@ impl<'a> KeywordFilter<'a> {
         };
 
         if let Ok(s) = utf8 {
-            for (idx, word) in self.args.arg_filter.iter()
-                    .enumerate() {
+            for (idx, word) in self.args
+                                   .arg_filter
+                                   .iter()
+                                   .enumerate() {
                 self.m_filter[idx] = self.m_filter[idx] || fuzzy_eq(&word, s);
             }
         }
@@ -98,9 +100,10 @@ impl<'a> KeywordFilter<'a> {
 
 fn real_main() -> i32 {
 
-    let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/doc/pwx.docopt")))
-                            .and_then(|d| d.decode())
-                            .unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
+                                                      "/doc/pwx.docopt")))
+                         .and_then(|d| d.decode())
+                         .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
         println!("pwx {}", VERSION);
@@ -118,8 +121,10 @@ fn real_main() -> i32 {
     } else if !env_db.is_empty() {
         PathBuf::from(&env_db)
     } else {
-        std::env::home_dir().expect("Cannot find your HOME path")
-            .join(".pwsafe").join("pwsafe.psafe3")
+        std::env::home_dir()
+            .expect("Cannot find your HOME path")
+            .join(".pwsafe")
+            .join("pwsafe.psafe3")
     };
 
     path = match abspath(&path) {
@@ -133,7 +138,7 @@ fn real_main() -> i32 {
         Err(err) => {
             let _ = writeln!(stderr(), "{}: {}", path.to_string_lossy(), err);
             return -1;
-        },
+        }
         _ => (),
     }
 
@@ -143,11 +148,14 @@ fn real_main() -> i32 {
     };
 
     let description = format!("Opening {}", path.to_string_lossy());
-    let mut p = match Pwx::open(&path, get_password(&args, &description).expect("Unable to get user password").as_bytes()) {
+    let mut p = match Pwx::open(&path,
+                                get_password(&args, &description)
+                                    .expect("Unable to get user password")
+                                    .as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
             exit(-1);
-        },
+        }
         Ok(p) => p,
     };
 
@@ -219,13 +227,19 @@ fn real_main() -> i32 {
     } else if args.cmd_info {
 
         let fields = PwxFieldIterator::new(&mut p).unwrap();
-        for (typ,val) in fields {
+        for (typ, val) in fields {
             match typ {
-                0x01 => print!("{} ", Uuid::from_bytes(val.as_ref())
+                0x01 => {
+                    print!("{} ",
+                           Uuid::from_bytes(val.as_ref())
                                .unwrap_or(Uuid::nil())
-                               .hyphenated().to_string()),
-                0x04 => print!("{} ", from_time_t(val.as_ref())
-                                 .expect("Invalid time_t field contents")),
+                               .hyphenated()
+                               .to_string())
+                }
+                0x04 => {
+                    print!("{} ",
+                           from_time_t(val.as_ref()).expect("Invalid time_t field contents"))
+                }
                 0x07 => print!("{} ", String::from_utf8_lossy(val.as_ref())),
                 0x08 => println!("@{} ", String::from_utf8_lossy(val.as_ref())),
                 0x09 => println!("{} ", String::from_utf8_lossy(val.as_ref())),
@@ -235,7 +249,10 @@ fn real_main() -> i32 {
             }
         }
     } else if args.cmd_get {
-        let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid).expect("Invalid UUID").as_bytes().to_vec()));
+        let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid)
+                                                   .expect("Invalid UUID")
+                                                   .as_bytes()
+                                                   .to_vec()));
 
         for record in p.iter().unwrap() {
             // Find record by UUID
@@ -267,7 +284,7 @@ fn real_main() -> i32 {
         return -1;
     }
 
-    return 0
+    return 0;
 }
 
 // We want to make sure we exit only after all the destructors
@@ -277,4 +294,3 @@ fn main() {
     let exit_code = real_main();
     exit(exit_code);
 }
-

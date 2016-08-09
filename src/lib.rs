@@ -1,4 +1,3 @@
-//!
 //! PWS3 database
 //!
 extern crate crypto;
@@ -11,11 +10,10 @@ use std::path::Path;
 use std::io;
 use std::io::Seek;
 use std::fmt;
-use std::collections::HashMap;
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use crypto::hmac::Hmac;
-use crypto::mac::{Mac,MacResult};
+use crypto::mac::{Mac, MacResult};
 use std::cmp::min;
 use secstr::SecStr;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -24,15 +22,15 @@ mod twofish;
 use twofish::Key;
 
 pub mod util;
-use util::{stretch_pass,read_all};
+use util::{stretch_pass, read_all};
 
 pub mod pinentry;
 pub mod db;
 pub use db::{Field, Value};
 
-const PREAMBLE_SIZE:usize = 152;
-const SHA256_SIZE:usize = 32;
-const BLOCK_SIZE:usize = 16;
+const PREAMBLE_SIZE: usize = 152;
+const SHA256_SIZE: usize = 32;
+const BLOCK_SIZE: usize = 16;
 
 #[derive(Debug)]
 pub enum Fail {
@@ -61,8 +59,12 @@ impl fmt::Display for Fail {
             Fail::InvalidTag => fmt.write_str("Invalid DB Tag"),
             Fail::InvalidIterationCount => fmt.write_str("Invalid DB, iteration count is too low"),
             Fail::WrongPassword => fmt.write_str("Wrong Password for DB"),
-            Fail::AuthenticationFailed => fmt.write_str("HMAC validation failed, the file has been tampered!"),
-            Fail::UnableToInitializeTwofishKey => fmt.write_str("libtwofish failed to initialize a key from the given data"),
+            Fail::AuthenticationFailed => {
+                fmt.write_str("HMAC validation failed, the file has been tampered!")
+            }
+            Fail::UnableToInitializeTwofishKey => {
+                fmt.write_str("libtwofish failed to initialize a key from the given data")
+            }
             Fail::InvalidSalt => fmt.write_str("Salt is too short"),
             Fail::EOF => fmt.write_str("EOF"),
         }
@@ -83,8 +85,7 @@ pub struct Pwx {
     auth: bool,
     iter: u32,
     file: File,
-    hmac_block_next: u64
-    // TODO: path
+    hmac_block_next: u64, // TODO: path
 }
 
 /// Iterate over all dabase records (excluding the db header).
@@ -97,7 +98,7 @@ impl<'a> Iterator for PwxRecordIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let mut rec = Vec::new();
 
-        for (typ,val) in &mut self.inner {
+        for (typ, val) in &mut self.inner {
             if typ == 0xff {
                 break;
             }
@@ -114,12 +115,10 @@ impl<'a> Iterator for PwxRecordIterator<'a> {
 }
 
 impl<'a> PwxRecordIterator<'a> {
-    pub fn new(db: &'a mut Pwx) -> Result<Self,Fail> {
+    pub fn new(db: &'a mut Pwx) -> Result<Self, Fail> {
         let mut inner = try!(PwxFieldIterator::new(db));
         inner.skip_record();
-        Ok(PwxRecordIterator {
-            inner: inner
-        })
+        Ok(PwxRecordIterator { inner: inner })
     }
 }
 
@@ -143,7 +142,7 @@ impl<'a> Iterator for PwxFieldIterator<'a> {
 }
 
 impl<'a> PwxFieldIterator<'a> {
-    pub fn new(db: &mut Pwx) -> Result<PwxFieldIterator,Fail> {
+    pub fn new(db: &mut Pwx) -> Result<PwxFieldIterator, Fail> {
         let start = PREAMBLE_SIZE as u64;
         try!(db.file.seek(io::SeekFrom::Start(start)));
         Ok(PwxFieldIterator {
@@ -182,7 +181,7 @@ impl<'a> PwxFieldIterator<'a> {
                 Ok(_) => (),
                 Err(err) => return Some(Fail::ReadError(err)),
             }
-            
+
             let expected_mac = MacResult::new(&expected);
             if expected_mac != self.db.crypto.hmac.result() {
                 return Some(Fail::AuthenticationFailed);
@@ -196,7 +195,7 @@ impl<'a> PwxFieldIterator<'a> {
     }
 
     /// Read next field data, HMAC() and return it
-    fn read_field(&mut self) -> Result<(u8,Value),Fail> {
+    fn read_field(&mut self) -> Result<(u8, Value), Fail> {
 
         // Read first block
         let mut memory = SecStr::new(vec![0u8; BLOCK_SIZE]);
@@ -207,23 +206,22 @@ impl<'a> PwxFieldIterator<'a> {
         }
 
         let fieldtype = plaintext[4];
-        let fieldlen = try!(plaintext.as_ref().read_u32::<LittleEndian>())
-                        as usize;
+        let fieldlen = try!(plaintext.as_ref().read_u32::<LittleEndian>()) as usize;
         let mut field_memory = SecStr::new(vec![0u8; fieldlen]);
         let mut pos = 0;
 
         // Copy first block
         {
             let last = min(11, fieldlen);
-            let chunk = &plaintext[5..5+last];
+            let chunk = &plaintext[5..5 + last];
             field_memory.unsecure_mut()[..chunk.len()].clone_from_slice(chunk);
             pos = chunk.len();
-            self.db.hmac(self.next_block-1, chunk);
+            self.db.hmac(self.next_block - 1, chunk);
         }
 
         if fieldlen > 11 {
             // Read rest of the field, one block at a time
-            let mut missing = fieldlen-11;
+            let mut missing = fieldlen - 11;
             while missing > 0 {
                 match self.read_next_block(plaintext) {
                     Some(fail) => return Err(fail),
@@ -236,8 +234,8 @@ impl<'a> PwxFieldIterator<'a> {
                     missing
                 };
                 let chunk = &plaintext[..count];
-                field_memory.unsecure_mut()[pos..pos+chunk.len()].clone_from_slice(chunk);
-                self.db.hmac(self.next_block-1, chunk);
+                field_memory.unsecure_mut()[pos..pos + chunk.len()].clone_from_slice(chunk);
+                self.db.hmac(self.next_block - 1, chunk);
                 missing -= count;
             }
         }
@@ -247,17 +245,15 @@ impl<'a> PwxFieldIterator<'a> {
 
     /// Skip all fields in the current record
     pub fn skip_record(&mut self) {
-        for (typ,_) in self {
+        for (typ, _) in self {
             if typ == 0xff {
                 break;
             }
         }
     }
-
 }
 
 impl Pwx {
-
     /// Open Database and check the given password
     pub fn open(path: &Path, password: &[u8]) -> Result<Pwx, Fail> {
         let mut file = match File::open(path) {
@@ -265,12 +261,12 @@ impl Pwx {
             Ok(file) => file,
         };
 
-        let mut preamble: [u8; PREAMBLE_SIZE] = [0;PREAMBLE_SIZE];
+        let mut preamble: [u8; PREAMBLE_SIZE] = [0; PREAMBLE_SIZE];
         try!(read_all(&mut file, &mut preamble));
 
         let (tag, rest) = preamble.split_at(4);
         if b"PWS3" != tag {
-            return Err(Fail::InvalidTag)
+            return Err(Fail::InvalidTag);
         }
 
         // 32byte SALT
@@ -281,7 +277,7 @@ impl Pwx {
 
         let itercount = try!(iter_bin.as_ref().read_u32::<LittleEndian>());
         if itercount < 2048 {
-            return Err(Fail::InvalidIterationCount)
+            return Err(Fail::InvalidIterationCount);
         }
 
         // H(P') - sha256 hash of the stretched pass used to verify
@@ -298,7 +294,7 @@ impl Pwx {
         sha.result(&mut stretched_hash);
 
         if stretched_hash != h_pline {
-            return Err(Fail::WrongPassword)
+            return Err(Fail::WrongPassword);
         }
 
         let pline_key = match Key::new(&stretched) {
@@ -315,7 +311,7 @@ impl Pwx {
             None => return Err(Fail::UnableToInitializeTwofishKey),
             Some(k) => k,
         };
-        
+
         // Decrypt L stored in blocks B3+B4
         let mut l_bin = SecStr::new(vec![0; BLOCK_SIZE*2]);
         let (b3, rest) = rest.split_at(BLOCK_SIZE);
@@ -334,7 +330,7 @@ impl Pwx {
         let hmac = Hmac::new(Sha256::new(), l_bin.unsecure());
 
         debug_assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
-        let p = Pwx{
+        let p = Pwx {
             auth: false,
             iter: itercount,
             file: file,
@@ -343,7 +339,7 @@ impl Pwx {
                 key_k: key_k,
                 iv: arr,
                 hmac: hmac,
-            })
+            }),
         };
 
         Ok(p)
@@ -378,4 +374,3 @@ impl Pwx {
         PwxRecordIterator::new(self)
     }
 }
-

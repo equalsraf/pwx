@@ -65,27 +65,28 @@ impl fmt::Display for Field {
         match *self {
             Field::Uuid(ref val) => {
                 let uuid = Uuid::from_bytes(val.as_ref())
-                    .unwrap_or(Uuid::nil())
-                    .hyphenated().to_string();
+                               .unwrap_or(Uuid::nil())
+                               .hyphenated()
+                               .to_string();
                 fmt.write_str(&uuid)
             }
-            Field::Group(ref v)  => {
+            Field::Group(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Title(ref v)  => {
+            Field::Title(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Username(ref v)  => {
+            Field::Username(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Notes(ref v)  => {
+            Field::Notes(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Password(ref v)  => {
+            Field::Password(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
@@ -101,15 +102,15 @@ impl fmt::Display for Field {
                 let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
                 write!(fmt, "{}", ts)
             }
-            Field::Url(ref v)  => {
+            Field::Url(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Email(ref v)  => {
+            Field::Email(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
-            Field::Command(ref v)  => {
+            Field::Command(ref v) => {
                 let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
@@ -148,4 +149,3 @@ impl AsRef<[u8]> for Value {
         self.borrow()
     }
 }
-

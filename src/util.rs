@@ -10,7 +10,7 @@ use std::io;
 use std::path::PathBuf;
 use std::env::current_dir;
 use std::io::Error as IoError;
-use std::io::{Write,stdout};
+use std::io::{Write, stdout};
 use super::pinentry::PinEntry;
 use byteorder::{LittleEndian, ReadBytesExt};
 
@@ -20,8 +20,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 /// [KEYSTRETCH Section 4.1] http://www.schneier.com/paper-low-entropy.pdf
 pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_SIZE]> {
 
-    if salt.len() < SHA256_SIZE || iter < 2048{
-        return None
+    if salt.len() < SHA256_SIZE || iter < 2048 {
+        return None;
     }
 
     let mut sha = Sha256::new();
@@ -29,7 +29,7 @@ pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_S
     sha.input(salt);
     let mut hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
     sha.result(&mut hash);
-    
+
     for _ in 0..iter {
         sha = Sha256::new();
         sha.input(&hash);
@@ -41,8 +41,7 @@ pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_S
 /// Matching function for filters - this behaves as
 /// a case insensitive substring find. Except it
 /// returns false if any of the arguments is empty.
-pub fn fuzzy_eq(needle: &str, hay: &str) -> bool
-{
+pub fn fuzzy_eq(needle: &str, hay: &str) -> bool {
     if needle.is_empty() || hay.is_empty() {
         return false;
     }
@@ -87,15 +86,15 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
 }
 
 /// Convert path to absolute path
-pub fn abspath(p: &PathBuf) -> Result<PathBuf,IoError> {
+pub fn abspath(p: &PathBuf) -> Result<PathBuf, IoError> {
     if p.is_absolute() {
-        return Ok(p.to_owned())
+        return Ok(p.to_owned());
     } else {
         match current_dir() {
             Ok(mut cd) => {
                 cd.push(p);
                 Ok(cd)
-            },
+            }
             Err(err) => Err(err),
         }
     }
@@ -114,12 +113,12 @@ pub fn get_password_from_user(description: &str, skip_pinentry: bool) -> Option<
     if !skip_pinentry {
         if let Ok(mut pe) = PinEntry::new() {
             match pe.set_description(description)
-                .set_title("pwx")
-                .set_prompt("Password")
-                .getpin() {
-                    Ok(pass) => return Some(pass),
-                    Err(_) => return None,
-                }
+                    .set_title("pwx")
+                    .set_prompt("Password")
+                    .getpin() {
+                Ok(pass) => return Some(pass),
+                Err(_) => return None,
+            }
         }
     }
 
@@ -144,6 +143,3 @@ mod tests {
     }
 
 }
-
-
-
