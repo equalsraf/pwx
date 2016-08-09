@@ -154,7 +154,7 @@ fn real_main() -> i32 {
                                     .as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
-            exit(-1);
+            return -1;
         }
         Ok(p) => p,
     };
