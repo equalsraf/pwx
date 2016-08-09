@@ -28,7 +28,7 @@ use util::{stretch_pass,read_all};
 
 pub mod pinentry;
 pub mod db;
-pub use db::{Field};
+pub use db::{Field, Value};
 
 const PREAMBLE_SIZE:usize = 152;
 const SHA256_SIZE:usize = 32;
@@ -133,7 +133,7 @@ pub struct PwxFieldIterator<'a> {
 }
 
 impl<'a> Iterator for PwxFieldIterator<'a> {
-    type Item = (u8,Vec<u8>);
+    type Item = (u8,Value);
     fn next(&mut self) -> Option<Self::Item> {
         match self.read_field() {
             Err(_) => None,
@@ -196,11 +196,12 @@ impl<'a> PwxFieldIterator<'a> {
     }
 
     /// Read next field data, HMAC() and return it
-    fn read_field(&mut self) -> Result<(u8,Vec<u8>),Fail> {
+    fn read_field(&mut self) -> Result<(u8,Value),Fail> {
 
         // Read first block
-        let mut plaintext = [0u8; BLOCK_SIZE];
-        match self.read_next_block(&mut plaintext) {
+        let mut memory = SecStr::new(vec![0u8; BLOCK_SIZE]);
+        let mut plaintext = memory.unsecure_mut();
+        match self.read_next_block(plaintext) {
             Some(fail) => return Err(fail),
             None => (),
         }
@@ -208,16 +209,15 @@ impl<'a> PwxFieldIterator<'a> {
         let fieldtype = plaintext[4];
         let fieldlen = try!(plaintext.as_ref().read_u32::<LittleEndian>())
                         as usize;
-        let mut data: Vec<u8> = Vec::new();
-        data.reserve(fieldlen);
+        let mut field_memory = SecStr::new(vec![0u8; fieldlen]);
+        let mut pos = 0;
 
         // Copy first block
         {
             let last = min(11, fieldlen);
             let chunk = &plaintext[5..5+last];
-            for byte in chunk {
-                data.push(byte.clone());
-            }
+            field_memory.unsecure_mut()[..chunk.len()].clone_from_slice(chunk);
+            pos = chunk.len();
             self.db.hmac(self.next_block-1, chunk);
         }
 
@@ -225,7 +225,7 @@ impl<'a> PwxFieldIterator<'a> {
             // Read rest of the field, one block at a time
             let mut missing = fieldlen-11;
             while missing > 0 {
-                match self.read_next_block(&mut plaintext) {
+                match self.read_next_block(plaintext) {
                     Some(fail) => return Err(fail),
                     None => (),
                 }
@@ -236,15 +236,13 @@ impl<'a> PwxFieldIterator<'a> {
                     missing
                 };
                 let chunk = &plaintext[..count];
-                for byte in chunk {
-                    data.push(byte.clone());
-                }
+                field_memory.unsecure_mut()[pos..pos+chunk.len()].clone_from_slice(chunk);
                 self.db.hmac(self.next_block-1, chunk);
                 missing -= count;
             }
         }
 
-        Ok((fieldtype,data))
+        Ok((fieldtype, Value::from(field_memory)))
     }
 
     /// Skip all fields in the current record

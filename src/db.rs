@@ -3,26 +3,27 @@ use std::fmt;
 use super::util;
 use super::uuid::Uuid;
 use super::secstr::SecStr;
+use std::borrow::Borrow;
 
 #[derive(PartialEq)]
 pub enum Field {
-    Uuid(Vec<u8>),
-    Group(Vec<u8>),
-    Title(Vec<u8>),
-    Username(Vec<u8>),
-    Notes(Vec<u8>),
-    Password(Vec<u8>),
-    CreationTime(Vec<u8>),
-    PasswordModificationTime(Vec<u8>),
-    LastAccessTime(Vec<u8>),
-    Url(Vec<u8>),
-    Command(Vec<u8>),
-    Email(Vec<u8>),
-    Unknown(u8, Vec<u8>),
+    Uuid(Value),
+    Group(Value),
+    Title(Value),
+    Username(Value),
+    Notes(Value),
+    Password(Value),
+    CreationTime(Value),
+    PasswordModificationTime(Value),
+    LastAccessTime(Value),
+    Url(Value),
+    Command(Value),
+    Email(Value),
+    Unknown(u8, Value),
 }
 
 impl Field {
-    pub fn from(typ: u8, val: Vec<u8>) -> Self {
+    pub fn from(typ: u8, val: Value) -> Self {
         match typ {
             0x01 => Field::Uuid(val),
             0x02 => Field::Group(val),
@@ -69,51 +70,82 @@ impl fmt::Display for Field {
                 fmt.write_str(&uuid)
             }
             Field::Group(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Title(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Username(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Notes(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Password(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::CreationTime(ref val) => {
-                let ts = util::from_time_t(&val).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
                 write!(fmt, "{}", ts)
             }
             Field::PasswordModificationTime(ref val) => {
-                let ts = util::from_time_t(&val).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
                 write!(fmt, "{}", ts)
             }
             Field::LastAccessTime(ref val) => {
-                let ts = util::from_time_t(&val).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
                 write!(fmt, "{}", ts)
             }
             Field::Url(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Email(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Command(ref v)  => {
-                let s = String::from_utf8_lossy(v);
+                let s = String::from_utf8_lossy(v.as_ref());
                 fmt.write_str(&s)
             }
             Field::Unknown(typ, _) => write!(fmt, "Unknown Field({})", typ),
         }
+    }
+}
+
+/// The value inside a field, a wrapper
+/// around a byte array
+#[derive(PartialEq)]
+pub struct Value {
+    data: SecStr,
+}
+
+impl From<SecStr> for Value {
+    fn from(val: SecStr) -> Value {
+        Value { data: val }
+    }
+}
+
+impl From<Vec<u8>> for Value {
+    fn from(val: Vec<u8>) -> Value {
+        Value { data: SecStr::from(val) }
+    }
+}
+
+impl Borrow<[u8]> for Value {
+    fn borrow(&self) -> &[u8] {
+        self.data.borrow()
+    }
+}
+
+impl AsRef<[u8]> for Value {
+    fn as_ref(&self) -> &[u8] {
+        self.borrow()
     }
 }
 

@@ -3,7 +3,7 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
 
-use pwx::{Pwx,PwxFieldIterator, Field};
+use pwx::{Pwx,PwxFieldIterator, Field, Value};
 use std::io::{Write,stderr};
 use std::process::exit;
 use std::path::PathBuf;
@@ -73,12 +73,12 @@ impl<'a> KeywordFilter<'a> {
     /// Attempt to match this filter against a field
     fn push(&mut self, field: &Field) {
         let utf8 = match *field {
-            Field::Group(ref v) => from_utf8(v),
-            Field::Title(ref v) => from_utf8(v),
-            Field::Username(ref v) => from_utf8(v),
-            Field::Notes(ref v) => from_utf8(v),
+            Field::Group(ref v) => from_utf8(v.as_ref()),
+            Field::Title(ref v) => from_utf8(v.as_ref()),
+            Field::Username(ref v) => from_utf8(v.as_ref()),
+            Field::Notes(ref v) => from_utf8(v.as_ref()),
             Field::Password(_) => return,
-            Field::Url(ref v) => from_utf8(v),
+            Field::Url(ref v) => from_utf8(v.as_ref()),
             _ => return,
         };
 
@@ -235,7 +235,7 @@ fn real_main() -> i32 {
             }
         }
     } else if args.cmd_get {
-        let get_uuid = Field::Uuid(Uuid::parse_str(&args.arg_uuid).expect("Invalid UUID").as_bytes().to_vec());
+        let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid).expect("Invalid UUID").as_bytes().to_vec()));
 
         for record in p.iter().unwrap() {
             // Find record by UUID
