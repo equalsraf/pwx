@@ -17,12 +17,13 @@ use crypto::mac::{Mac, MacResult};
 use std::cmp::min;
 use secstr::SecStr;
 use byteorder::{LittleEndian, ReadBytesExt};
+use uuid::Uuid;
 
 mod twofish;
 use twofish::Key;
 
 pub mod util;
-use util::{stretch_pass, read_all};
+use util::{stretch_pass, read_all, from_time_t};
 
 pub mod pinentry;
 pub mod db;
@@ -373,4 +374,54 @@ impl Pwx {
     pub fn iter(&mut self) -> Result<PwxRecordIterator, Fail> {
         PwxRecordIterator::new(self)
     }
+
+    /// Returns database header info
+    pub fn info(&mut self) -> Result<PwxInfo, Fail> {
+        let mut info = PwxInfo {
+            uuid: String::new(),
+            mtime: 0,
+            user: String::new(),
+            host: String::new(),
+            dbname: String::new(),
+            description: String::new(),
+        };
+
+        let fields = try!(PwxFieldIterator::new(self));
+        for (typ, val) in fields {
+            match typ {
+                0x01 => info.uuid = Uuid::from_bytes(val.as_ref())
+                    .unwrap_or(Uuid::nil())
+                    .hyphenated()
+                    .to_string(),
+                0x04 => info.mtime = from_time_t(val.as_ref()).unwrap_or(0),
+                0x07 => info.user = String::from_utf8_lossy(val.as_ref())
+                    .into_owned(),
+                0x08 => info.host = String::from_utf8_lossy(val.as_ref())
+                    .into_owned(),
+                0x09 => info.dbname = String::from_utf8_lossy(val.as_ref())
+                    .into_owned(),
+                0x0a => info.description = String::from_utf8_lossy(val.as_ref())
+                    .into_owned(),
+                0xff => break,
+                _ => (),
+            }
+        }
+        Ok(info)
+    }
 }
+
+/// PWS3 Database metadata
+pub struct PwxInfo {
+    pub uuid: String,
+    /// Last save time
+    pub mtime: u64,
+    /// Last saved by user
+    pub user: String,
+    /// Last saved on host
+    pub host: String,
+    /// Database name
+    pub dbname: String,
+    /// Database description
+    pub description: String,
+}
+

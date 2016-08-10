@@ -3,7 +3,7 @@ extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
 
-use pwx::{Pwx, PwxFieldIterator, Field, Value};
+use pwx::{Pwx, Field, Value};
 use std::io::{Write, stderr};
 use std::process::exit;
 use std::path::PathBuf;
@@ -226,28 +226,12 @@ fn real_main() -> i32 {
         }
     } else if args.cmd_info {
 
-        let fields = PwxFieldIterator::new(&mut p).unwrap();
-        for (typ, val) in fields {
-            match typ {
-                0x01 => {
-                    print!("{} ",
-                           Uuid::from_bytes(val.as_ref())
-                               .unwrap_or(Uuid::nil())
-                               .hyphenated()
-                               .to_string())
-                }
-                0x04 => {
-                    print!("{} ",
-                           from_time_t(val.as_ref()).expect("Invalid time_t field contents"))
-                }
-                0x07 => print!("{} ", String::from_utf8_lossy(val.as_ref())),
-                0x08 => println!("@{} ", String::from_utf8_lossy(val.as_ref())),
-                0x09 => println!("{} ", String::from_utf8_lossy(val.as_ref())),
-                0x0a => println!("\"{}\" ", String::from_utf8_lossy(val.as_ref())),
-                0xff => break,
-                _ => (),
-            }
-        }
+        let info = p.info().unwrap();
+        println!("{} {} {}@{}",
+                 info.uuid,
+                 info.mtime,
+                 info.user,
+                 info.host);
     } else if args.cmd_get {
         let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid)
                                                    .expect("Invalid UUID")
