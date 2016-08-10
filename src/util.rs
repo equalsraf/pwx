@@ -13,6 +13,7 @@ use std::io::Error as IoError;
 use std::io::{Write, stdout};
 use super::pinentry::PinEntry;
 use byteorder::{LittleEndian, ReadBytesExt};
+use chrono::naive::datetime::NaiveDateTime;
 
 /// Generate the SHA-256 value of a password after several rounds of
 /// stretching. If the salt is too short, this returns None.
@@ -54,12 +55,16 @@ pub fn fuzzy_eq(needle: &str, hay: &str) -> bool {
 
 /// Read binary data as time_t, i.e. decode 32bit or 64bit sequences
 /// as unsigned little endian. [sec. 3.1.3]
-pub fn from_time_t(b: &[u8]) -> Option<u64> {
+pub fn from_time_t(b: &[u8]) -> Option<NaiveDateTime> {
     let mut b_r = b;
     if b.len() == 4 {
-        b_r.read_u32::<LittleEndian>().map(|val| val as u64).ok()
+        b_r.read_u32::<LittleEndian>()
+           .map(|val| NaiveDateTime::from_timestamp(val as i64, 0))
+           .ok()
     } else if b.len() == 8 {
-        b_r.read_u64::<LittleEndian>().map(|val| val as u64).ok()
+        b_r.read_u64::<LittleEndian>()
+           .map(|val| NaiveDateTime::from_timestamp(val as i64, 0))
+           .ok()
     } else {
         None
     }

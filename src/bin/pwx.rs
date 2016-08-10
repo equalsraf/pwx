@@ -227,11 +227,7 @@ fn real_main() -> i32 {
     } else if args.cmd_info {
 
         let info = p.info().unwrap();
-        println!("{} {} {}@{}",
-                 info.uuid,
-                 info.mtime,
-                 info.user,
-                 info.host);
+        println!("{} {} {}@{}", info.uuid, info.mtime, info.user, info.host);
     } else if args.cmd_get {
         let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid)
                                                    .expect("Invalid UUID")

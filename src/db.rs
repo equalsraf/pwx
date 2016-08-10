@@ -4,6 +4,7 @@ use super::util;
 use super::uuid::Uuid;
 use super::secstr::SecStr;
 use std::borrow::Borrow;
+use super::chrono::naive::datetime::NaiveDateTime;
 
 #[derive(PartialEq)]
 pub enum Field {
@@ -91,15 +92,18 @@ impl fmt::Display for Field {
                 fmt.write_str(&s)
             }
             Field::CreationTime(ref val) => {
-                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref())
+                             .unwrap_or(NaiveDateTime::from_timestamp(0, 0));
                 write!(fmt, "{}", ts)
             }
             Field::PasswordModificationTime(ref val) => {
-                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref())
+                             .unwrap_or(NaiveDateTime::from_timestamp(0, 0));
                 write!(fmt, "{}", ts)
             }
             Field::LastAccessTime(ref val) => {
-                let ts = util::from_time_t(val.as_ref()).unwrap_or(0);
+                let ts = util::from_time_t(val.as_ref())
+                             .unwrap_or(NaiveDateTime::from_timestamp(0, 0));
                 write!(fmt, "{}", ts)
             }
             Field::Url(ref v) => {

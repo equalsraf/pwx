@@ -4,6 +4,7 @@ extern crate crypto;
 extern crate secstr;
 extern crate byteorder;
 extern crate uuid;
+extern crate chrono;
 
 use std::fs::File;
 use std::path::Path;
@@ -18,6 +19,7 @@ use std::cmp::min;
 use secstr::SecStr;
 use byteorder::{LittleEndian, ReadBytesExt};
 use uuid::Uuid;
+use chrono::naive::datetime::NaiveDateTime;
 
 mod twofish;
 use twofish::Key;
@@ -379,7 +381,7 @@ impl Pwx {
     pub fn info(&mut self) -> Result<PwxInfo, Fail> {
         let mut info = PwxInfo {
             uuid: String::new(),
-            mtime: 0,
+            mtime: NaiveDateTime::from_timestamp(0, 0),
             user: String::new(),
             host: String::new(),
             dbname: String::new(),
@@ -389,19 +391,20 @@ impl Pwx {
         let fields = try!(PwxFieldIterator::new(self));
         for (typ, val) in fields {
             match typ {
-                0x01 => info.uuid = Uuid::from_bytes(val.as_ref())
-                    .unwrap_or(Uuid::nil())
-                    .hyphenated()
-                    .to_string(),
-                0x04 => info.mtime = from_time_t(val.as_ref()).unwrap_or(0),
-                0x07 => info.user = String::from_utf8_lossy(val.as_ref())
-                    .into_owned(),
-                0x08 => info.host = String::from_utf8_lossy(val.as_ref())
-                    .into_owned(),
-                0x09 => info.dbname = String::from_utf8_lossy(val.as_ref())
-                    .into_owned(),
-                0x0a => info.description = String::from_utf8_lossy(val.as_ref())
-                    .into_owned(),
+                0x01 => {
+                    info.uuid = Uuid::from_bytes(val.as_ref())
+                                    .unwrap_or(Uuid::nil())
+                                    .hyphenated()
+                                    .to_string()
+                }
+                0x04 => {
+                    info.mtime = from_time_t(val.as_ref())
+                                     .unwrap_or(NaiveDateTime::from_timestamp(0, 0))
+                }
+                0x07 => info.user = String::from_utf8_lossy(val.as_ref()).into_owned(),
+                0x08 => info.host = String::from_utf8_lossy(val.as_ref()).into_owned(),
+                0x09 => info.dbname = String::from_utf8_lossy(val.as_ref()).into_owned(),
+                0x0a => info.description = String::from_utf8_lossy(val.as_ref()).into_owned(),
                 0xff => break,
                 _ => (),
             }
@@ -414,7 +417,7 @@ impl Pwx {
 pub struct PwxInfo {
     pub uuid: String,
     /// Last save time
-    pub mtime: u64,
+    pub mtime: NaiveDateTime,
     /// Last saved by user
     pub user: String,
     /// Last saved on host
@@ -424,4 +427,3 @@ pub struct PwxInfo {
     /// Database description
     pub description: String,
 }
-
