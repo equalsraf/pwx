@@ -30,7 +30,6 @@ struct Args {
     flag_username: String,
     flag_title: String,
     flag_quiet: bool,
-    cmd_count: bool,
     cmd_list: bool,
     cmd_get: bool,
     cmd_info: bool,
@@ -167,8 +166,7 @@ fn real_main() -> i32 {
         return -1;
     }
 
-    if args.cmd_list || args.cmd_count {
-        let mut count = 0;
+    if args.cmd_list {
         let min_pw_age = Duration::days(args.flag_password_age as i64);
 
         for record in p.iter().unwrap() {
@@ -243,15 +241,7 @@ fn real_main() -> i32 {
                 continue;
             }
 
-            if args.cmd_count {
-                count += 1;
-            } else {
-                println!("{} {}[{}]", uuid, title, username);
-            }
-        }
-
-        if args.cmd_count {
-            println!("{}", count);
+            println!("{} {}[{}]", uuid, title, username);
         }
     } else if args.cmd_info {
 
