@@ -2,6 +2,7 @@ extern crate pwx;
 extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
+extern crate chrono;
 
 use pwx::{Pwx, Field, Value};
 use std::io::{Write, stderr};
@@ -11,6 +12,8 @@ use docopt::Docopt;
 use uuid::Uuid;
 use pwx::util::{fuzzy_eq, from_time_t, abspath, get_password_from_user};
 use std::str::from_utf8;
+use chrono::Local;
+use chrono::duration::Duration;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -23,6 +26,7 @@ struct Args {
     arg_filter: Vec<String>,
     flag_url: String,
     flag_group: String,
+    flag_password_age: u32,
     flag_username: String,
     flag_title: String,
     flag_quiet: bool,
@@ -165,6 +169,7 @@ fn real_main() -> i32 {
 
     if args.cmd_list || args.cmd_count {
         let mut count = 0;
+        let min_pw_age = Duration::days(args.flag_password_age as i64);
 
         for record in p.iter().unwrap() {
             let mut uuid = String::new();
@@ -176,6 +181,10 @@ fn real_main() -> i32 {
             let mut f_title = args.flag_title.is_empty();
             let mut f_url = args.flag_url.is_empty();
             let mut f_group = args.flag_group.is_empty();
+
+            // The password-age filter can use either ctime or ptime
+            let mut creation_time = None;
+            let mut password_age = None;
 
             // Keyword filters
             let mut f_keywords = KeywordFilter::new(&args);
@@ -200,6 +209,16 @@ fn real_main() -> i32 {
                         let group = format!("{}", field);
                         f_group = f_group || fuzzy_eq(&args.flag_group, &group);
                     }
+                    Field::CreationTime(val) => {
+                        let ts = from_time_t(val.as_ref()).unwrap();
+                        let diff = Local::now().naive_local() - ts;
+                        creation_time = Some(diff);
+                    }
+                    Field::PasswordModificationTime(val) => {
+                        let ts = from_time_t(val.as_ref()).unwrap();
+                        let diff = Local::now().naive_local() - ts;
+                        password_age = Some(diff);
+                    }
                     _ => (),
                 }
             }
@@ -207,6 +226,16 @@ fn real_main() -> i32 {
             if !f_username || !f_title || !f_url || !f_group {
                 // Skip, record filter did not match
                 continue;
+            }
+
+            match (creation_time, password_age) {
+                // No fields were found treat as a match
+                (None, None) => (),
+                // Password was never modified
+                (Some(diff), None) if diff < min_pw_age => continue,
+                // Password modification time
+                (_, Some(diff)) if diff < min_pw_age => continue,
+                _ => (),
             }
 
             if !f_keywords.matched() {

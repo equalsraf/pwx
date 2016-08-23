@@ -52,6 +52,7 @@ impl Field {
             Field::Notes(_) => Some("notes"),
             Field::Password(_) => Some("password"),
             Field::CreationTime(_) => Some("ctime"),
+            Field::PasswordModificationTime(_) => Some("ptime"),
             Field::LastAccessTime(_) => Some("atime"),
             Field::Url(_) => Some("url"),
             Field::Email(_) => Some("email"),
