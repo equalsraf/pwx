@@ -25,7 +25,7 @@ The *list* command is used to list entries in the database.
 
     $ pwx list
 
-List accepts a filter argument, that matches all text fields in a record.
+List accepts keywords as arguments, that matches all text fields in a record.
 
     $ pwx list some
     43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8 facebook[some@email.com]

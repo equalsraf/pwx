@@ -90,28 +90,6 @@ fn list_filter() {
     assert_eq!(sout.trim().split('\n').count(), 1);
 }
 
-// Same as the filter tests, but for count
-#[test]
-fn count() {
-    let output = pwxrun!("count", "some");
-    let sout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(sout.trim().split('\n').nth(0), Some("2"));
-
-    // Filters
-    let output = pwxrun!("count", "-U", "some", "some");
-    let sout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(sout.trim().split('\n').nth(0), Some("1"));
-
-    // Narrow a query with multiple filters
-    let output = pwxrun!("count", "some", "facebook");
-    let sout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(sout.trim().split('\n').nth(0), Some("1"));
-
-    let output = pwxrun!("count", "some", "facebook", "none");
-    let sout = String::from_utf8_lossy(&output.stdout);
-    assert_eq!(sout.trim().split('\n').nth(0), Some("0"));
-}
-
 #[test]
 fn get() {
     // URL
