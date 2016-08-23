@@ -49,6 +49,7 @@ impl Key {
         }
     }
 
+    #[allow(dead_code)]
     pub fn encrypt(&self, data_in: &[u8], out: &mut [u8]) {
         if data_in.len() < 16 || out.len() < 16 {
             panic!("Invalid twofish block size");

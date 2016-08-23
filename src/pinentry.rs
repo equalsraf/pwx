@@ -24,6 +24,7 @@ impl fmt::Display for PinEntryError {
 /// PinEntry client, check the Assuan protocol for
 /// details.
 pub struct PinEntry {
+    #[allow(dead_code)]
     cmd: Child,
     pipe_w: ChildStdin,
     pipe_r: BufReader<ChildStdout>,
