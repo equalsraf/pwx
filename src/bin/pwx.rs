@@ -23,7 +23,7 @@ struct Args {
     arg_file: String,
     arg_fieldname: String,
     arg_uuid: String,
-    arg_filter: Vec<String>,
+    arg_keyword: Vec<String>,
     flag_url: String,
     flag_group: String,
     flag_password_age: u32,
@@ -66,10 +66,10 @@ struct KeywordFilter<'a> {
 impl<'a> KeywordFilter<'a> {
     fn new(args: &Args) -> KeywordFilter {
         let mut f = KeywordFilter {
-            m_filter: Vec::with_capacity(args.arg_filter.len()),
+            m_filter: Vec::with_capacity(args.arg_keyword.len()),
             args: args,
         };
-        f.m_filter.resize(args.arg_filter.len(), false);
+        f.m_filter.resize(args.arg_keyword.len(), false);
         f
     }
 
@@ -87,7 +87,7 @@ impl<'a> KeywordFilter<'a> {
 
         if let Ok(s) = utf8 {
             for (idx, word) in self.args
-                                   .arg_filter
+                                   .arg_keyword
                                    .iter()
                                    .enumerate() {
                 self.m_filter[idx] = self.m_filter[idx] || fuzzy_eq(&word, s);

@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
 
-`pwx` [options] [&lt;file&gt;] list [filters] [&lt;filter&gt;...]<br>
+`pwx` [options] [&lt;file&gt;] list [filters] [&lt;keyword&gt;...]<br>
 `pwx` [options] [&lt;file&gt;] info<br>
 `pwx` [options] [&lt;file&gt;] get &lt;uuid&gt; &lt;fieldname&gt;<br>
 `pwx` (--help | --version)<br>
@@ -10,9 +10,9 @@
 
 ## DESCRIPTION
 
-`pwx` is a CLI password manager, compatible with Password Safe v3. A password safe
-database is a list of records, each holding multiple fields with login information
-(username, password, url, etc).
+`pwx` is a CLI password manager, compatible with Password Safe v3. A password
+safe database is a list of records, each holding multiple fields with login
+information (username, password, url, etc).
 
 
 ### Exit status:

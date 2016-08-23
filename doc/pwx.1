@@ -1,22 +1,19 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "PWX" "1" "September 2015" "" ""
+.TH "PWX" "1" "August 2016" "" ""
 .
 .SH "NAME"
 \fBpwx\fR \- password manager
 .
 .SH "SYNOPSIS"
-\fBpwx\fR [options] [<file>] list [\-R URL] [\-G GROUP] [\-U USERNAME] [\-T TITLE] [<filter>]
+\fBpwx\fR [options] [<file>] list [filters] [<keyword>\.\.\.]
 .
 .br
 \fBpwx\fR [options] [<file>] info
 .
 .br
 \fBpwx\fR [options] [<file>] get <uuid> <fieldname>
-.
-.br
-\fBpwx\fR [options] [<file>] count [\-R URL] [\-G GROUP] [\-U USERNAME] [\-T TITLE] [<filter>]
 .
 .br
 \fBpwx\fR (\-\-help | \-\-version)
@@ -108,7 +105,7 @@ $ target/debug/pwx tests/test\.psafe3 get 63a19136\-46d9\-4f75\-827b\-5312574233
 .IP "" 0
 .
 .P
-Valid field names are \fBgroup\fR, \fBtitle\fR, \fBusername\fR, \fBnotes\fR, \fBpassword\fR, \fBctime\fR, \fBatime\fR, \fBmtime\fR, \fBurl\fR, \fBcommand\fR, \fBemail\fR\.
+Valid field names are \fBgroup\fR, \fBtitle\fR, \fBusername\fR, \fBnotes\fR, \fBpassword\fR, \fBctime\fR, \fBptime\fR, \fBatime\fR, \fBurl\fR, \fBcommand\fR, \fBemail\fR\.
 .
 .SH "FILES"
 .
