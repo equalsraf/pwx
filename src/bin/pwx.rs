@@ -135,14 +135,9 @@ fn real_main() -> i32 {
         Err(_) => path,
     };
 
-    // FIXME: PathBuf::exists is still Unstable, but we need to verify
-    // if the file exists before prompting for password
-    match std::fs::File::open(&path) {
-        Err(err) => {
-            let _ = writeln!(stderr(), "{}: {}", path.to_string_lossy(), err);
-            return -1;
-        }
-        _ => (),
+    if !path.exists() {
+        let _ = writeln!(stderr(), "File does not exist: {}", path.to_string_lossy());
+        return -1;
     }
 
     path = match abspath(&path) {
