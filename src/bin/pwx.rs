@@ -10,10 +10,11 @@ use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
-use pwx::util::{fuzzy_eq, from_time_t, abspath, get_password_from_user};
+use pwx::util::{fuzzy_eq, from_time_t, get_password_from_user};
 use std::str::from_utf8;
 use chrono::Local;
 use chrono::duration::Duration;
+use std::env::current_dir;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -36,6 +37,21 @@ struct Args {
     flag_version: bool,
     flag_pass_interactive: bool,
     flag_no_pinentry: bool,
+}
+
+/// Convert path to absolute path
+pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
+    if p.is_absolute() {
+        return Ok(p.to_owned());
+    } else {
+        match current_dir() {
+            Ok(mut cd) => {
+                cd.push(p);
+                Ok(cd)
+            }
+            Err(err) => Err(err),
+        }
+    }
 }
 
 /// Get password

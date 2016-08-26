@@ -7,9 +7,6 @@ use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use std::ascii::AsciiExt;
 use std::io;
-use std::path::PathBuf;
-use std::env::current_dir;
-use std::io::Error as IoError;
 use std::io::{Write, stdout};
 use super::pinentry::PinEntry;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -87,21 +84,6 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
         Ok(count)
     } else {
         Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
-    }
-}
-
-/// Convert path to absolute path
-pub fn abspath(p: &PathBuf) -> Result<PathBuf, IoError> {
-    if p.is_absolute() {
-        return Ok(p.to_owned());
-    } else {
-        match current_dir() {
-            Ok(mut cd) => {
-                cd.push(p);
-                Ok(cd)
-            }
-            Err(err) => Err(err),
-        }
     }
 }
 
