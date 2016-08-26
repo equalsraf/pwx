@@ -4,7 +4,7 @@
 
 `pwx` [options] [&lt;file&gt;] list [filters] [&lt;keyword&gt;...]<br>
 `pwx` [options] [&lt;file&gt;] info<br>
-`pwx` [options] [&lt;file&gt;] get &lt;uuid&gt; &lt;fieldname&gt;<br>
+`pwx` [options] [&lt;file&gt;] get &lt;recid&gt; &lt;fieldname&gt;<br>
 `pwx` (--help | --version)<br>
 
 

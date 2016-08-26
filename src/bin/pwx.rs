@@ -2,6 +2,7 @@ extern crate pwx;
 extern crate docopt;
 extern crate rustc_serialize;
 extern crate uuid;
+extern crate rust_base58;
 extern crate chrono;
 
 use pwx::{Pwx, Field, Value};
@@ -10,6 +11,7 @@ use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
+use rust_base58::{ToBase58, FromBase58};
 use pwx::util::{fuzzy_eq, from_time_t, get_password_from_user};
 use std::str::from_utf8;
 use chrono::Local;
@@ -23,13 +25,14 @@ const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 struct Args {
     arg_file: String,
     arg_fieldname: String,
-    arg_uuid: String,
+    arg_recid: String,
     arg_keyword: Vec<String>,
     flag_url: String,
     flag_group: String,
     flag_password_age: u32,
     flag_username: String,
     flag_title: String,
+    flag_long: bool,
     flag_quiet: bool,
     cmd_list: bool,
     cmd_get: bool,
@@ -181,7 +184,7 @@ fn real_main() -> i32 {
         let min_pw_age = Duration::days(args.flag_password_age as i64);
 
         for record in p.iter().unwrap() {
-            let mut uuid = String::new();
+            let mut recid = String::new();
             let mut title = String::new();
             let mut username = String::new();
 
@@ -201,7 +204,12 @@ fn real_main() -> i32 {
             for field in record {
                 f_keywords.push(&field);
                 match field {
-                    Field::Uuid(_) => uuid = format!("{}", field),
+                    Field::Uuid(ref val) =>
+                        recid = if args.flag_long {
+                            format!("{}", field)
+                        } else {
+                            val.as_ref().to_base58()
+                        },
                     Field::Title(_) => {
                         title = format!("{}", field);
                         f_title = f_title || fuzzy_eq(&args.flag_title, &title);
@@ -252,17 +260,21 @@ fn real_main() -> i32 {
                 continue;
             }
 
-            println!("{} {}[{}]", uuid, title, username);
+            println!("{} {}[{}]", recid, title, username);
         }
     } else if args.cmd_info {
 
         let info = p.info().unwrap();
         println!("{} {} {}@{}", info.uuid, info.mtime, info.user, info.host);
     } else if args.cmd_get {
-        let get_uuid = Field::Uuid(Value::from(Uuid::parse_str(&args.arg_uuid)
-                                                   .expect("Invalid UUID")
-                                                   .as_bytes()
-                                                   .to_vec()));
+        // Try decoding as base58
+        let bin = match args.arg_recid.from_base58() {
+            Ok(vec) => vec,
+            Err(_) => Uuid::parse_str(&args.arg_recid)
+                                .expect("Invalid record id")
+                                .as_bytes().to_vec(),
+        };
+        let get_uuid = Field::Uuid(Value::from(bin));
 
         for record in p.iter().unwrap() {
             // Find record by UUID
@@ -290,7 +302,7 @@ fn real_main() -> i32 {
             let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
         }
 
-        let _ = writeln!(stderr(), "Unknown record: {}", args.arg_uuid);
+        let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
         return -1;
     }
 

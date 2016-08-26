@@ -1,11 +1,12 @@
 Usage: pwx [options] [<file>] list [filters] [<keyword>...]
        pwx [options] [<file>] info
-       pwx [options] [<file>] get <uuid> <fieldname>
+       pwx [options] [<file>] get <recid> <fieldname>
        pwx (--help | --version)
 
 Options:
     --pass-interactive      Ignore $PWX_PASSWORD, get master password interactively
     --no-pinentry           Do not use pinentry to get user password
+    --long
     -q, --quiet
     -h, --help              Show this help message
     -v, --version           Show pwx version
