@@ -94,18 +94,17 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
 ///
 /// Returns None if pinentry failed to retrieve a password.
 /// May panic if it can't read a password from the terminal.
-pub fn get_password_from_user(description: &str, skip_pinentry: bool) -> Option<String> {
+pub fn get_password_from_user(description: &str, skip_pinentry: bool)
+    -> Result<String, String> {
 
     // If available use pinentry to get the user password
     if !skip_pinentry {
         if let Ok(mut pe) = PinEntry::new() {
-            match pe.set_description(description)
-                    .set_title("pwx")
-                    .set_prompt("Password")
-                    .getpin() {
-                Ok(pass) => return Some(pass),
-                Err(_) => return None,
-            }
+            return  pe.set_description(description)
+                .set_title("pwx")
+                .set_prompt("Password")
+                .getpin()
+                .map_err(|err| format!("Unable to get password using pinentry: {}", err));
         }
     }
 
@@ -113,7 +112,7 @@ pub fn get_password_from_user(description: &str, skip_pinentry: bool) -> Option<
     println!("{}", description);
     print!("Password: ");
     stdout().flush().unwrap();
-    Some(rpassword::read_password().ok().expect("Unable to read password from console"))
+    Ok(rpassword::read_password().ok().expect("Unable to read password from console"))
 }
 
 #[cfg(test)]

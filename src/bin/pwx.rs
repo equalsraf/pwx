@@ -63,12 +63,12 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
 /// 3. Otherwise read from console
 ///
 /// This function may panic on encoding issues
-fn get_password(args: &Args, description: &str) -> Option<String> {
+fn get_password(args: &Args, description: &str) -> Result<String, String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
         get_password_from_user(description, args.flag_no_pinentry)
     } else {
-        Some(var.unwrap())
+        Ok(var.unwrap())
     }
 }
 
@@ -167,7 +167,7 @@ fn real_main() -> i32 {
     let description = format!("Opening {}", path.to_string_lossy());
     let mut p = match Pwx::open(&path,
                                 get_password(&args, &description)
-                                    .expect("Unable to get user password")
+                                    .unwrap()
                                     .as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
