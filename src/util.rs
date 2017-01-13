@@ -89,16 +89,12 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
 
 /// Get user master password.
 ///
-/// If pinentry is available use it, otherwise fallback
-/// to reading user password from the console.
-///
-/// Returns None if pinentry failed to retrieve a password.
 /// May panic if it can't read a password from the terminal.
-pub fn get_password_from_user(description: &str, skip_pinentry: bool)
+pub fn get_password_from_user(description: &str, use_pinentry: bool)
     -> Result<String, String> {
 
-    // If available use pinentry to get the user password
-    if !skip_pinentry {
+    // Use pinentry to get the user password
+    if use_pinentry {
         if let Ok(mut pe) = PinEntry::new() {
             return  pe.set_description(description)
                 .set_title("pwx")

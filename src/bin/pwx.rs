@@ -39,7 +39,7 @@ struct Args {
     cmd_info: bool,
     flag_version: bool,
     flag_pass_interactive: bool,
-    flag_no_pinentry: bool,
+    flag_pinentry: bool,
 }
 
 /// Convert path to absolute path
@@ -66,7 +66,7 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
 fn get_password(args: &Args, description: &str) -> Result<String, String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
-        get_password_from_user(description, args.flag_no_pinentry)
+        get_password_from_user(description, args.flag_pinentry)
     } else {
         Ok(var.unwrap())
     }
