@@ -1,5 +1,4 @@
 
-extern crate rpassword;
 extern crate byteorder;
 
 use crypto::sha2::Sha256;
@@ -7,8 +6,6 @@ use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use std::ascii::AsciiExt;
 use std::io;
-use std::io::{Write, stdout};
-use super::pinentry::PinEntry;
 use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::naive::datetime::NaiveDateTime;
 
@@ -85,30 +82,6 @@ pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
     } else {
         Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
     }
-}
-
-/// Get user master password.
-///
-/// May panic if it can't read a password from the terminal.
-pub fn get_password_from_user(description: &str, use_pinentry: bool)
-    -> Result<String, String> {
-
-    // Use pinentry to get the user password
-    if use_pinentry {
-        if let Ok(mut pe) = PinEntry::new() {
-            return  pe.set_description(description)
-                .set_title("pwx")
-                .set_prompt("Password")
-                .getpin()
-                .map_err(|err| format!("Unable to get password using pinentry: {}", err));
-        }
-    }
-
-    // Get password from terminal
-    println!("{}", description);
-    print!("Password: ");
-    stdout().flush().unwrap();
-    Ok(rpassword::read_password().ok().expect("Unable to read password from console"))
 }
 
 #[cfg(test)]

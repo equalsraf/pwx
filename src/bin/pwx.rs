@@ -4,15 +4,17 @@ extern crate rustc_serialize;
 extern crate uuid;
 extern crate rust_base58;
 extern crate chrono;
+extern crate rpassword;
 
 use pwx::{Pwx, Field, Value};
-use std::io::{Write, stderr};
+use std::io::{Write, stderr, stdout};
 use std::process::exit;
 use std::path::PathBuf;
 use docopt::Docopt;
 use uuid::Uuid;
 use rust_base58::{ToBase58, FromBase58};
-use pwx::util::{fuzzy_eq, from_time_t, get_password_from_user};
+use pwx::util::{fuzzy_eq, from_time_t};
+use pwx::pinentry::PinEntry;
 use std::str::from_utf8;
 use chrono::Local;
 use chrono::duration::Duration;
@@ -66,7 +68,22 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
 fn get_password(args: &Args, description: &str) -> Result<String, String> {
     let var = std::env::var("PWX_PASSWORD");
     if args.flag_pass_interactive || !var.is_ok() {
-        get_password_from_user(description, args.flag_pinentry)
+        // Use pinentry to get the user password
+        if args.flag_pinentry {
+            if let Ok(mut pe) = PinEntry::new() {
+                return  pe.set_description(description)
+                    .set_title("pwx")
+                    .set_prompt("Password")
+                    .getpin()
+                    .map_err(|err| format!("Unable to get password using pinentry: {}", err));
+            }
+        }
+
+        // Get password from terminal
+        if !args.flag_quiet {
+            let _ = write!(stderr(), "{}\n", description);
+        }
+        Ok(rpassword::prompt_password_stderr("Password: ").ok().expect("Unable to read password from console"))
     } else {
         Ok(var.unwrap())
     }
