@@ -52,7 +52,7 @@ struct Args {
 /// Convert path to absolute path
 pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
     if p.is_absolute() {
-        return Ok(p.to_owned());
+        Ok(p.to_owned())
     } else {
         match current_dir() {
             Ok(mut cd) => {
@@ -66,7 +66,7 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
 
 /// Get password
 /// 1. If --pass-interactive read from console
-/// 2. If PWX_PASSWORD is set use it
+/// 2. If `PWX_PASSWORD` is set use it
 /// 3. Otherwise read from console
 ///
 /// This function may panic on encoding issues
@@ -76,11 +76,11 @@ fn get_password(args: &Args, description: &str) -> Result<String, String> {
         // Use pinentry to get the user password
         if args.flag_pinentry {
             if let Ok(mut pe) = PinEntry::new() {
-                return  pe.set_description(description)
-                    .set_title("pwx")
-                    .set_prompt("Password")
-                    .getpin()
-                    .map_err(|err| format!("Unable to get password using pinentry: {}", err));
+                return pe.set_description(description)
+                         .set_title("pwx")
+                         .set_prompt("Password")
+                         .getpin()
+                         .map_err(|err| format!("Unable to get password using pinentry: {}", err));
             }
         }
 
@@ -88,7 +88,8 @@ fn get_password(args: &Args, description: &str) -> Result<String, String> {
         if !args.flag_quiet {
             let _ = write!(stderr(), "{}\n", description);
         }
-        Ok(rpassword::prompt_password_stderr("Password: ").ok().expect("Unable to read password from console"))
+        Ok(rpassword::prompt_password_stderr("Password: ")
+               .expect("Unable to read password from console"))
     } else {
         Ok(var.unwrap())
     }
@@ -117,12 +118,12 @@ impl<'a> KeywordFilter<'a> {
     /// Attempt to match this filter against a field
     fn push(&mut self, field: &Field) {
         let utf8 = match *field {
-            Field::Group(ref v) => from_utf8(v.as_ref()),
-            Field::Title(ref v) => from_utf8(v.as_ref()),
-            Field::Username(ref v) => from_utf8(v.as_ref()),
-            Field::Notes(ref v) => from_utf8(v.as_ref()),
-            Field::Password(_) => return,
+            Field::Group(ref v) |
+            Field::Title(ref v) |
+            Field::Username(ref v) |
+            Field::Notes(ref v) |
             Field::Url(ref v) => from_utf8(v.as_ref()),
+            Field::Password(_) => return,
             _ => return,
         };
 
@@ -142,8 +143,7 @@ impl<'a> KeywordFilter<'a> {
     }
 }
 
-fn real_main() -> i32 {
-
+fn main() {
     let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                                       "/doc/pwx.docopt")))
                          .and_then(|d| d.decode())
@@ -151,7 +151,7 @@ fn real_main() -> i32 {
 
     if args.flag_version {
         println!("pwx {}", VERSION);
-        return 0;
+        exit(0);
     }
 
     // The password safe is one of
@@ -178,7 +178,7 @@ fn real_main() -> i32 {
 
     if !path.exists() {
         let _ = writeln!(stderr(), "File does not exist: {}", path.to_string_lossy());
-        return -1;
+        exit(-1);
     }
 
     path = match abspath(&path) {
@@ -193,13 +193,13 @@ fn real_main() -> i32 {
                                     .as_bytes()) {
         Err(f) => {
             let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
-            return -1;
+            exit(-1);
         }
         Ok(p) => p,
     };
 
     if !p.is_authentic() {
-        return -1;
+        exit(-1);
     }
 
     if args.cmd_list {
@@ -226,12 +226,13 @@ fn real_main() -> i32 {
             for field in record {
                 f_keywords.push(&field);
                 match field {
-                    Field::Uuid(ref val) =>
+                    Field::Uuid(ref val) => {
                         recid = if args.flag_long {
                             format!("{}", field)
                         } else {
                             val.as_ref().to_base58()
-                        },
+                        }
+                    }
                     Field::Title(_) => {
                         title = format!("{}", field);
                         f_title = f_title || fuzzy_eq(&args.flag_title, &title);
@@ -292,9 +293,12 @@ fn real_main() -> i32 {
         // Try decoding as base58
         let bin = match args.arg_recid.from_base58() {
             Ok(vec) => vec,
-            Err(_) => Uuid::parse_str(&args.arg_recid)
-                                .expect("Invalid record id")
-                                .as_bytes().to_vec(),
+            Err(_) => {
+                Uuid::parse_str(&args.arg_recid)
+                    .expect("Invalid record id")
+                    .as_bytes()
+                    .to_vec()
+            }
         };
         let get_uuid = Field::Uuid(Value::from(bin));
 
@@ -318,7 +322,7 @@ fn real_main() -> i32 {
                 if let Some(name) = field.name() {
                     if args.cmd_get && args.arg_fieldname == name {
                         println!("{}", field);
-                        return 0;
+                        exit(0);
                     } else if args.cmd_getrec {
                         recdict.insert(name.to_owned(), format!("{}", field));
                     }
@@ -329,22 +333,13 @@ fn real_main() -> i32 {
                 let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
             } else {
                 // getrec
-                print!("{}", args.arg_fmt.format(&recdict).expect("Error applying format string"));
-                return 0;
+                print!("{}",
+                       args.arg_fmt.format(&recdict).expect("Error applying format string"));
+                exit(0);
             }
         }
 
         let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
-        return -1;
+        exit(-1);
     }
-
-    return 0;
-}
-
-// We want to make sure we exit only after all the destructors
-// are called, wait for real_main() to be done before actually
-// calling exit.
-fn main() {
-    let exit_code = real_main();
-    exit(exit_code);
 }

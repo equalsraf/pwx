@@ -4,16 +4,16 @@ use std::path::Path;
 
 #[test]
 fn test_is_authentic () {
-    let mut p = Pwx::open(Path::new("tests/test.psafe3"), "test".as_bytes()).unwrap();
+    let mut p = Pwx::open(Path::new("tests/test.psafe3"), b"test").unwrap();
     assert_eq!(p.is_authentic(), true);
 
-    let mut p = pwx::Pwx::open(Path::new("tests/test_authfail.psafe3"), "test".as_bytes()).unwrap();
+    let mut p = pwx::Pwx::open(Path::new("tests/test_authfail.psafe3"), b"test").unwrap();
     assert_eq!(p.is_authentic(), false);
 }
 
 #[test]
 fn test_field_iterator() {
-    let mut p = Pwx::open(Path::new("tests/test.psafe3"), "test".as_bytes()).unwrap();
+    let mut p = Pwx::open(Path::new("tests/test.psafe3"), b"test").unwrap();
     assert!(p.is_authentic());
 
     // If we want to read from the start again, we can get a new
@@ -31,7 +31,7 @@ fn test_field_iterator() {
 
 #[test]
 fn test_record_iterator() {
-    let mut p = Pwx::open(Path::new("tests/test.psafe3"), "test".as_bytes()).unwrap();
+    let mut p = Pwx::open(Path::new("tests/test.psafe3"), b"test").unwrap();
 
     let records = PwxRecordIterator::new(&mut p).unwrap();
     let mut count = 0;
