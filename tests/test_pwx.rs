@@ -7,9 +7,11 @@ use std::env::current_exe;
 
 macro_rules! pwxrun {
     ($($arg:expr),*) => {{
-        let binpath = current_exe().unwrap()
+        let mut binpath = current_exe().unwrap()
                         .parent().expect("executable path")
-                        .to_path_buf().join("pwx");
+                        .to_path_buf();
+        binpath.push("..");
+        binpath.push("pwx");
         Command::new(&binpath)
             .env("PWX_PASSWORD", "test")
             .env("PWX_DATABASE", "tests/test.psafe3")
@@ -125,3 +127,11 @@ fn get() {
     assert_eq!(sout.trim(), "testpassverylong");
 }
 
+#[test]
+fn getrec() {
+    let output = pwxrun!("getrec", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "{username}\nurl: {url}");
+    assert!(output.status.success());
+    let sout = String::from_utf8_lossy(&output.stdout);
+    println!("{}", sout);
+    assert_eq!(sout.trim(), "some@email.com\nurl: https://facebook.com");
+}
