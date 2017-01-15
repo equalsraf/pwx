@@ -15,6 +15,7 @@ secstr = "0.2"
 byteorder = "0.5"
 chrono = "0.2"
 rust-base58 = "0.0.4"
+strfmt = "0.1"
 
 [build-dependencies]
 gcc = "0.3"

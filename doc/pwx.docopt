@@ -1,6 +1,7 @@
 Usage: pwx [options] [<file>] list [filters] [<keyword>...]
        pwx [options] [<file>] info
        pwx [options] [<file>] get <recid> <fieldname>
+       pwx [options] [<file>] getrec <recid> <fmt>
        pwx (--help | --version)
 
 Options:

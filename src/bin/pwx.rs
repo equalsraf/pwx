@@ -5,11 +5,13 @@ extern crate uuid;
 extern crate rust_base58;
 extern crate chrono;
 extern crate rpassword;
+extern crate strfmt;
 
 use pwx::{Pwx, Field, Value};
-use std::io::{Write, stderr, stdout};
+use std::io::{Write, stderr};
 use std::process::exit;
 use std::path::PathBuf;
+use std::collections::HashMap;
 use docopt::Docopt;
 use uuid::Uuid;
 use rust_base58::{ToBase58, FromBase58};
@@ -19,6 +21,7 @@ use std::str::from_utf8;
 use chrono::Local;
 use chrono::duration::Duration;
 use std::env::current_dir;
+use strfmt::Format;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -29,6 +32,7 @@ struct Args {
     arg_fieldname: String,
     arg_recid: String,
     arg_keyword: Vec<String>,
+    arg_fmt: String,
     flag_url: String,
     flag_group: String,
     flag_password_age: u32,
@@ -38,6 +42,7 @@ struct Args {
     flag_quiet: bool,
     cmd_list: bool,
     cmd_get: bool,
+    cmd_getrec: bool,
     cmd_info: bool,
     flag_version: bool,
     flag_pass_interactive: bool,
@@ -283,7 +288,7 @@ fn real_main() -> i32 {
 
         let info = p.info().unwrap();
         println!("{} {} {}@{}", info.uuid, info.mtime, info.user, info.host);
-    } else if args.cmd_get {
+    } else if args.cmd_get || args.cmd_getrec {
         // Try decoding as base58
         let bin = match args.arg_recid.from_base58() {
             Ok(vec) => vec,
@@ -307,16 +312,26 @@ fn real_main() -> i32 {
                 continue;
             }
 
+            let mut recdict = HashMap::new();
             // Get field value
             for field in &record {
                 if let Some(name) = field.name() {
-                    if name == args.arg_fieldname {
+                    if args.cmd_get && args.arg_fieldname == name {
                         println!("{}", field);
                         return 0;
+                    } else if args.cmd_getrec {
+                        recdict.insert(name.to_owned(), format!("{}", field));
                     }
                 }
             }
-            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
+
+            if args.cmd_get {
+                let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
+            } else {
+                // getrec
+                print!("{}", args.arg_fmt.format(&recdict).expect("Error applying format string"));
+                return 0;
+            }
         }
 
         let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
