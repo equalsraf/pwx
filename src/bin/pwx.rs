@@ -6,6 +6,7 @@ extern crate rust_base58;
 extern crate chrono;
 extern crate rpassword;
 extern crate strfmt;
+extern crate gpgagent;
 
 use pwx::{Pwx, Field, Value};
 use std::io::{Write, stderr};
@@ -16,7 +17,6 @@ use docopt::Docopt;
 use uuid::Uuid;
 use rust_base58::{ToBase58, FromBase58};
 use pwx::util::{fuzzy_eq, from_time_t};
-use pwx::pinentry::PinEntry;
 use std::str::from_utf8;
 use chrono::Local;
 use chrono::duration::Duration;
@@ -45,8 +45,6 @@ struct Args {
     cmd_getrec: bool,
     cmd_info: bool,
     flag_version: bool,
-    flag_pass_interactive: bool,
-    flag_pinentry: bool,
 }
 
 /// Convert path to absolute path
@@ -61,37 +59,6 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
             }
             Err(err) => Err(err),
         }
-    }
-}
-
-/// Get password
-/// 1. If --pass-interactive read from console
-/// 2. If `PWX_PASSWORD` is set use it
-/// 3. Otherwise read from console
-///
-/// This function may panic on encoding issues
-fn get_password(args: &Args, description: &str) -> Result<String, String> {
-    let var = std::env::var("PWX_PASSWORD");
-    if args.flag_pass_interactive || !var.is_ok() {
-        // Use pinentry to get the user password
-        if args.flag_pinentry {
-            if let Ok(mut pe) = PinEntry::new() {
-                return pe.set_description(description)
-                         .set_title("pwx")
-                         .set_prompt("Password")
-                         .getpin()
-                         .map_err(|err| format!("Unable to get password using pinentry: {}", err));
-            }
-        }
-
-        // Get password from terminal
-        if !args.flag_quiet {
-            let _ = write!(stderr(), "{}\n", description);
-        }
-        Ok(rpassword::prompt_password_stderr("Password: ")
-               .expect("Unable to read password from console"))
-    } else {
-        Ok(var.unwrap())
     }
 }
 
@@ -143,6 +110,145 @@ impl<'a> KeywordFilter<'a> {
     }
 }
 
+fn cmd_list(p: &mut Pwx, args: &Args) {
+    let min_pw_age = Duration::days(args.flag_password_age as i64);
+
+    for record in p.iter().unwrap() {
+        let mut recid = String::new();
+        let mut title = String::new();
+        let mut username = String::new();
+
+        // Field filters
+        let mut f_username = args.flag_username.is_empty();
+        let mut f_title = args.flag_title.is_empty();
+        let mut f_url = args.flag_url.is_empty();
+        let mut f_group = args.flag_group.is_empty();
+
+        // The password-age filter can use either ctime or ptime
+        let mut creation_time = None;
+        let mut password_age = None;
+
+        // Keyword filters
+        let mut f_keywords = KeywordFilter::new(&args);
+
+        for field in record {
+            f_keywords.push(&field);
+            match field {
+                Field::Uuid(ref val) => {
+                    recid = if args.flag_long {
+                        format!("{}", field)
+                    } else {
+                        val.as_ref().to_base58()
+                    }
+                }
+                Field::Title(_) => {
+                    title = format!("{}", field);
+                    f_title = f_title || fuzzy_eq(&args.flag_title, &title);
+                }
+                Field::Username(_) => {
+                    username = format!("{}", field);
+                    f_username = f_username || fuzzy_eq(&args.flag_username, &username);
+                }
+                Field::Url(_) => {
+                    let url = format!("{}", field);
+                    f_url = f_url || fuzzy_eq(&args.flag_url, &url);
+                }
+                Field::Group(_) => {
+                    let group = format!("{}", field);
+                    f_group = f_group || fuzzy_eq(&args.flag_group, &group);
+                }
+                Field::CreationTime(val) => {
+                    let ts = from_time_t(val.as_ref()).unwrap();
+                    let diff = Local::now().naive_local() - ts;
+                    creation_time = Some(diff);
+                }
+                Field::PasswordModificationTime(val) => {
+                    let ts = from_time_t(val.as_ref()).unwrap();
+                    let diff = Local::now().naive_local() - ts;
+                    password_age = Some(diff);
+                }
+                _ => (),
+            }
+        }
+
+        if !f_username || !f_title || !f_url || !f_group {
+            // Skip, record filter did not match
+            continue;
+        }
+
+        match (creation_time, password_age) {
+            // No fields were found treat as a match
+            (None, None) => (),
+            // Password was never modified
+            (Some(diff), None) if diff < min_pw_age => continue,
+            // Password modification time
+            (_, Some(diff)) if diff < min_pw_age => continue,
+            _ => (),
+        }
+
+        if !f_keywords.matched() {
+            // Skip, generic keyword filter did not match
+            continue;
+        }
+
+        println!("{} {}[{}]", recid, title, username);
+    }
+}
+
+fn cmd_get(p: &mut Pwx, args: &Args) {
+    // Try decoding as base58
+    let bin = match args.arg_recid.from_base58() {
+        Ok(vec) => vec,
+        Err(_) => {
+            Uuid::parse_str(&args.arg_recid)
+                .expect("Invalid record id")
+                .as_bytes()
+                .to_vec()
+        }
+    };
+    let get_uuid = Field::Uuid(Value::from(bin));
+
+    for record in p.iter().unwrap() {
+        // Find record by UUID
+        let mut found = false;
+        for field in &record {
+            if *field == get_uuid {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            continue;
+        }
+
+        let mut recdict = HashMap::new();
+        // Get field value
+        for field in &record {
+            if let Some(name) = field.name() {
+                if args.cmd_get && args.arg_fieldname == name {
+                    println!("{}", field);
+                    exit(0);
+                } else if args.cmd_getrec {
+                    recdict.insert(name.to_owned(), format!("{}", field));
+                }
+            }
+        }
+
+        if args.cmd_get {
+            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
+        } else {
+            // getrec
+            print!("{}",
+                   args.arg_fmt.format(&recdict).expect("Error applying format string"));
+            exit(0);
+        }
+    }
+
+    let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
+    exit(-1);
+}
+
 fn main() {
     let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                                       "/doc/pwx.docopt")))
@@ -187,15 +293,46 @@ fn main() {
     };
 
     let description = format!("Opening {}", path.to_string_lossy());
-    let mut p = match Pwx::open(&path,
-                                get_password(&args, &description)
-                                    .unwrap()
-                                    .as_bytes()) {
-        Err(f) => {
-            let _ = writeln!(stderr(), "Error: {} {}", f, path.to_string_lossy());
-            exit(-1);
+
+
+    let mut p = if let Ok(var) = std::env::var("PWX_PASSWORD") {
+        match Pwx::open(&path, var.as_bytes()) {
+            Err(err) => {
+                let _ = writeln!(stderr(), "Error opening {} with $PWX_PASSWORD: {}", path.to_string_lossy(), err);
+                exit(-1);
+            }
+            Ok(p) => p,
         }
-        Ok(p) => p,
+    } else if let Ok(mut agent) = gpgagent::GpgAgent::from_standard_paths() {
+        let _ = agent.setopt_ttyname();
+        let cache_id = format!("pwx:{}", path.to_string_lossy());
+        let pass = agent.get_passphrase(&cache_id, "pwx", "Password", &description)
+            .map(|p| String::from_utf8(p).unwrap())
+            .expect("Unable to get password using gpg-agent");
+
+        match Pwx::open(&path, pass.as_bytes()) {
+            Err(err) => {
+                let _ = writeln!(stderr(), "Error opening {} using gpg-agent: {}", path.to_string_lossy(), err);
+                let _ = agent.clear_passphrase(&cache_id);
+                exit(-1);
+            }
+            Ok(p) => p,
+        }
+    } else {
+        // Get password from terminal
+        if !args.flag_quiet {
+            let _ = write!(stderr(), "{}\n", description);
+        }
+        let pass = rpassword::prompt_password_stderr("Password: ")
+            .expect("Unable to read password from console");
+
+        match Pwx::open(&path, pass.as_bytes()) {
+            Err(err) => {
+                let _ = writeln!(stderr(), "Error opening {}: {}", path.to_string_lossy(), err);
+                exit(-1);
+            }
+            Ok(p) => p,
+        }
     };
 
     if !p.is_authentic() {
@@ -203,143 +340,12 @@ fn main() {
     }
 
     if args.cmd_list {
-        let min_pw_age = Duration::days(args.flag_password_age as i64);
-
-        for record in p.iter().unwrap() {
-            let mut recid = String::new();
-            let mut title = String::new();
-            let mut username = String::new();
-
-            // Field filters
-            let mut f_username = args.flag_username.is_empty();
-            let mut f_title = args.flag_title.is_empty();
-            let mut f_url = args.flag_url.is_empty();
-            let mut f_group = args.flag_group.is_empty();
-
-            // The password-age filter can use either ctime or ptime
-            let mut creation_time = None;
-            let mut password_age = None;
-
-            // Keyword filters
-            let mut f_keywords = KeywordFilter::new(&args);
-
-            for field in record {
-                f_keywords.push(&field);
-                match field {
-                    Field::Uuid(ref val) => {
-                        recid = if args.flag_long {
-                            format!("{}", field)
-                        } else {
-                            val.as_ref().to_base58()
-                        }
-                    }
-                    Field::Title(_) => {
-                        title = format!("{}", field);
-                        f_title = f_title || fuzzy_eq(&args.flag_title, &title);
-                    }
-                    Field::Username(_) => {
-                        username = format!("{}", field);
-                        f_username = f_username || fuzzy_eq(&args.flag_username, &username);
-                    }
-                    Field::Url(_) => {
-                        let url = format!("{}", field);
-                        f_url = f_url || fuzzy_eq(&args.flag_url, &url);
-                    }
-                    Field::Group(_) => {
-                        let group = format!("{}", field);
-                        f_group = f_group || fuzzy_eq(&args.flag_group, &group);
-                    }
-                    Field::CreationTime(val) => {
-                        let ts = from_time_t(val.as_ref()).unwrap();
-                        let diff = Local::now().naive_local() - ts;
-                        creation_time = Some(diff);
-                    }
-                    Field::PasswordModificationTime(val) => {
-                        let ts = from_time_t(val.as_ref()).unwrap();
-                        let diff = Local::now().naive_local() - ts;
-                        password_age = Some(diff);
-                    }
-                    _ => (),
-                }
-            }
-
-            if !f_username || !f_title || !f_url || !f_group {
-                // Skip, record filter did not match
-                continue;
-            }
-
-            match (creation_time, password_age) {
-                // No fields were found treat as a match
-                (None, None) => (),
-                // Password was never modified
-                (Some(diff), None) if diff < min_pw_age => continue,
-                // Password modification time
-                (_, Some(diff)) if diff < min_pw_age => continue,
-                _ => (),
-            }
-
-            if !f_keywords.matched() {
-                // Skip, generic keyword filter did not match
-                continue;
-            }
-
-            println!("{} {}[{}]", recid, title, username);
-        }
+        cmd_list(&mut p, &args)
     } else if args.cmd_info {
 
         let info = p.info().unwrap();
         println!("{} {} {}@{}", info.uuid, info.mtime, info.user, info.host);
     } else if args.cmd_get || args.cmd_getrec {
-        // Try decoding as base58
-        let bin = match args.arg_recid.from_base58() {
-            Ok(vec) => vec,
-            Err(_) => {
-                Uuid::parse_str(&args.arg_recid)
-                    .expect("Invalid record id")
-                    .as_bytes()
-                    .to_vec()
-            }
-        };
-        let get_uuid = Field::Uuid(Value::from(bin));
-
-        for record in p.iter().unwrap() {
-            // Find record by UUID
-            let mut found = false;
-            for field in &record {
-                if *field == get_uuid {
-                    found = true;
-                    break;
-                }
-            }
-
-            if !found {
-                continue;
-            }
-
-            let mut recdict = HashMap::new();
-            // Get field value
-            for field in &record {
-                if let Some(name) = field.name() {
-                    if args.cmd_get && args.arg_fieldname == name {
-                        println!("{}", field);
-                        exit(0);
-                    } else if args.cmd_getrec {
-                        recdict.insert(name.to_owned(), format!("{}", field));
-                    }
-                }
-            }
-
-            if args.cmd_get {
-                let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
-            } else {
-                // getrec
-                print!("{}",
-                       args.arg_fmt.format(&recdict).expect("Error applying format string"));
-                exit(0);
-            }
-        }
-
-        let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
-        exit(-1);
+        cmd_get(&mut p, &args)
     }
 }

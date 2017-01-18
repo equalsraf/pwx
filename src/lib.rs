@@ -27,7 +27,6 @@ use twofish::Key;
 pub mod util;
 use util::{stretch_pass, read_all, from_time_t};
 
-pub mod pinentry;
 pub mod db;
 pub use db::{Field, Value};
 
