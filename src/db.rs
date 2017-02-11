@@ -126,7 +126,7 @@ impl fmt::Display for Field {
 
 /// The value inside a field, a wrapper
 /// around a byte array
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub struct Value {
     data: SecStr,
 }

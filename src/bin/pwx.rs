@@ -8,7 +8,7 @@ extern crate rpassword;
 extern crate strfmt;
 extern crate gpgagent;
 
-use pwx::{Pwx, Field, Value};
+use pwx::{PwxReader, Field, Value};
 use std::io::{Write, stderr};
 use std::process::exit;
 use std::path::PathBuf;
@@ -110,10 +110,11 @@ impl<'a> KeywordFilter<'a> {
     }
 }
 
-fn cmd_list(p: &mut Pwx, args: &Args) {
+fn cmd_list(p: &mut PwxReader, args: &Args) {
     let min_pw_age = Duration::days(args.flag_password_age as i64);
 
-    for record in p.iter().unwrap() {
+    for record in p.records().unwrap() {
+        let record = record.expect("Error while reading database");
         let mut recid = String::new();
         let mut title = String::new();
         let mut username = String::new();
@@ -195,7 +196,7 @@ fn cmd_list(p: &mut Pwx, args: &Args) {
     }
 }
 
-fn cmd_get(p: &mut Pwx, args: &Args) {
+fn cmd_get(p: &mut PwxReader, args: &Args) {
     // Try decoding as base58
     let bin = match args.arg_recid.from_base58() {
         Ok(vec) => vec,
@@ -208,7 +209,8 @@ fn cmd_get(p: &mut Pwx, args: &Args) {
     };
     let get_uuid = Field::Uuid(Value::from(bin));
 
-    for record in p.iter().unwrap() {
+    for record in p.records().unwrap() {
+        let record = record.expect("Error while reading database");
         // Find record by UUID
         let mut found = false;
         for field in &record {
@@ -296,7 +298,7 @@ fn main() {
 
 
     let mut p = if let Ok(var) = std::env::var("PWX_PASSWORD") {
-        match Pwx::open(&path, var.as_bytes()) {
+        match PwxReader::open(&path, var.as_bytes()) {
             Err(err) => {
                 let _ = writeln!(stderr(), "Error opening {} with $PWX_PASSWORD: {}", path.to_string_lossy(), err);
                 exit(-1);
@@ -310,7 +312,7 @@ fn main() {
             .map(|p| String::from_utf8(p).unwrap())
             .expect("Unable to get password using gpg-agent");
 
-        match Pwx::open(&path, pass.as_bytes()) {
+        match PwxReader::open(&path, pass.as_bytes()) {
             Err(err) => {
                 let _ = writeln!(stderr(), "Error opening {} using gpg-agent: {}", path.to_string_lossy(), err);
                 let _ = agent.clear_passphrase(&cache_id);
@@ -326,7 +328,7 @@ fn main() {
         let pass = rpassword::prompt_password_stderr("Password: ")
             .expect("Unable to read password from console");
 
-        match Pwx::open(&path, pass.as_bytes()) {
+        match PwxReader::open(&path, pass.as_bytes()) {
             Err(err) => {
                 let _ = writeln!(stderr(), "Error opening {}: {}", path.to_string_lossy(), err);
                 exit(-1);
@@ -335,7 +337,7 @@ fn main() {
         }
     };
 
-    if !p.is_authentic() {
+    if !p.authenticate().is_ok() {
         exit(-1);
     }
 

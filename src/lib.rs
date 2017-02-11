@@ -9,7 +9,7 @@ extern crate chrono;
 use std::fs::File;
 use std::path::Path;
 use std::io;
-use std::io::Seek;
+use std::io::{Seek, Read};
 use std::fmt;
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
@@ -25,7 +25,7 @@ mod twofish;
 use twofish::Key;
 
 pub mod util;
-use util::{stretch_pass, read_all, from_time_t};
+use util::{stretch_pass, from_time_t};
 
 pub mod db;
 pub use db::{Field, Value};
@@ -73,199 +73,41 @@ impl fmt::Display for Fail {
     }
 }
 
-// TODO: mlock
-// Keep these in a separate Boxed struct
-struct PwxCrypto {
+/// PWS3 Database metadata, this is stored in the
+/// header record.
+pub struct PwxInfo {
+    pub uuid: String,
+    /// Last save time
+    pub mtime: NaiveDateTime,
+    /// Last saved by user
+    pub user: String,
+    /// Last saved on host
+    pub host: String,
+    /// Database name
+    pub dbname: String,
+    /// Database description
+    pub description: String,
+}
+
+/// Holds Key info and the HMAC retrieved from the
+/// DB preamble
+pub struct PwxKeyInfo {
+    /// The block decryption key K
     key_k: Key,
+    /// The HMAC key L
+    key_l: SecStr,
+    /// The IV for block decryption
     iv: [u8; BLOCK_SIZE],
-    hmac: Hmac<Sha256>,
-}
-
-pub struct Pwx {
-    crypto: Box<PwxCrypto>,
-    /// True if the HMAC has been verified
-    auth: bool,
+    /// The iteration count for password stretching
     iter: u32,
-    file: File,
-    hmac_block_next: u64, // TODO: path
 }
 
-/// Iterate over all dabase records (excluding the db header).
-pub struct PwxRecordIterator<'a> {
-    inner: PwxFieldIterator<'a>,
-}
-
-impl<'a> Iterator for PwxRecordIterator<'a> {
-    type Item = Vec<Field>;
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut rec = Vec::new();
-
-        for (typ, val) in &mut self.inner {
-            if typ == 0xff {
-                break;
-            }
-
-            rec.push(db::Field::from(typ, val));
-        }
-
-        if rec.is_empty() {
-            None
-        } else {
-            Some(rec)
-        }
-    }
-}
-
-impl<'a> PwxRecordIterator<'a> {
-    pub fn new(db: &'a mut Pwx) -> Result<Self, Fail> {
-        let mut inner = try!(PwxFieldIterator::new(db));
-        inner.skip_record();
-        Ok(PwxRecordIterator { inner: inner })
-    }
-}
-
-/// Iterator over all the fields in the database. This might
-/// be a bit too low level, see `PwxRecordIterator` for a higher
-/// level record iterator.
-pub struct PwxFieldIterator<'a> {
-    db: &'a mut Pwx,
-    cbc_block: SecStr,
-    next_block: u64,
-}
-
-impl<'a> Iterator for PwxFieldIterator<'a> {
-    type Item = (u8,Value);
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.read_field() {
-            Err(_) => None,
-            Ok(f) => Some(f),
-        }
-    }
-}
-
-impl<'a> PwxFieldIterator<'a> {
-    pub fn new(db: &mut Pwx) -> Result<PwxFieldIterator, Fail> {
-        let start = PREAMBLE_SIZE as u64;
-        try!(db.file.seek(io::SeekFrom::Start(start)));
-        Ok(PwxFieldIterator {
-            cbc_block: SecStr::from(&db.crypto.iv[..]),
-            db: db,
-            next_block: 0,
-        })
-    }
-
-    /// Decrypt CBC block
-    fn decrypt(&mut self, in_data: &[u8], out: &mut [u8]) {
-        if in_data.len() < 16 || out.len() < 16 {
-            panic!("Received buffer with invalid block size");
-        }
-
-        self.db.crypto.key_k.decrypt(in_data, out);
-
-        for i in 0..BLOCK_SIZE {
-            out[i] ^= self.cbc_block.unsecure()[i];
-            self.cbc_block.unsecure_mut()[i] = in_data[i];
-        }
-    }
-
-    /// Read and decrypt next block in file
-    fn read_next_block(&mut self, out: &mut [u8]) -> Option<Fail> {
-        let mut block = [0u8; BLOCK_SIZE];
-        match read_all(&mut self.db.file, &mut block) {
-            Ok(_) => (),
-            Err(err) => return Some(Fail::ReadError(err)),
-        }
-        self.next_block += 1;
-
-        if b"PWS3-EOFPWS3-EOF" == &block {
-            let mut expected = [0u8; SHA256_SIZE];
-            match read_all(&mut self.db.file, &mut expected) {
-                Ok(_) => (),
-                Err(err) => return Some(Fail::ReadError(err)),
-            }
-
-            let expected_mac = MacResult::new(&expected);
-            if expected_mac != self.db.crypto.hmac.result() {
-                return Some(Fail::AuthenticationFailed);
-            }
-            self.db.auth = true;
-            return Some(Fail::EOF);
-        }
-
-        self.decrypt(&block, out);
-        None
-    }
-
-    /// Read next field data, HMAC() and return it
-    fn read_field(&mut self) -> Result<(u8, Value), Fail> {
-
-        // Read first block
-        let mut memory = SecStr::new(vec![0u8; BLOCK_SIZE]);
-        let mut plaintext = memory.unsecure_mut();
-        match self.read_next_block(plaintext) {
-            Some(fail) => return Err(fail),
-            None => (),
-        }
-
-        let fieldtype = plaintext[4];
-        let fieldlen = try!(plaintext.as_ref().read_u32::<LittleEndian>()) as usize;
-        let mut field_memory = SecStr::new(vec![0u8; fieldlen]);
-        let mut pos = 0;
-
-        // Copy first block
-        {
-            let last = min(11, fieldlen);
-            let chunk = &plaintext[5..5 + last];
-            field_memory.unsecure_mut()[..chunk.len()].clone_from_slice(chunk);
-            pos = chunk.len();
-            self.db.hmac(self.next_block - 1, chunk);
-        }
-
-        if fieldlen > 11 {
-            // Read rest of the field, one block at a time
-            let mut missing = fieldlen - 11;
-            while missing > 0 {
-                match self.read_next_block(plaintext) {
-                    Some(fail) => return Err(fail),
-                    None => (),
-                }
-
-                let count = if missing > BLOCK_SIZE {
-                    BLOCK_SIZE
-                } else {
-                    missing
-                };
-                let chunk = &plaintext[..count];
-                field_memory.unsecure_mut()[pos..pos + chunk.len()].clone_from_slice(chunk);
-                self.db.hmac(self.next_block - 1, chunk);
-                missing -= count;
-            }
-        }
-
-        Ok((fieldtype, Value::from(field_memory)))
-    }
-
-    /// Skip all fields in the current record
-    pub fn skip_record(&mut self) {
-        for (typ, _) in self {
-            if typ == 0xff {
-                break;
-            }
-        }
-    }
-}
-
-impl Pwx {
-    /// Open Database and check the given password
-    pub fn open(path: &Path, password: &[u8]) -> Result<Pwx, Fail> {
-        let mut file = match File::open(path) {
-            Err(why) => return Err(Fail::UnableToOpen(why)),
-            Ok(file) => file,
-        };
-
-        let mut preamble: [u8; PREAMBLE_SIZE] = [0; PREAMBLE_SIZE];
-        try!(read_all(&mut file, &mut preamble));
-
+impl PwxKeyInfo {
+    /// Parses the DB preamble, i.e. the first 152 bytes found in a
+    /// passwordsafe file.
+    ///
+    /// The user password is needed to decrypt the preamble fields.
+    pub fn parse_preamble(preamble: &[u8; PREAMBLE_SIZE], password: &[u8]) -> Result<PwxKeyInfo, Fail> {
         let (tag, rest) = preamble.split_at(4);
         if b"PWS3" != tag {
             return Err(Fail::InvalidTag);
@@ -328,52 +170,232 @@ impl Pwx {
             arr[i] = iv[i];
         }
 
-        // TODO: any way to lock this?
-        let hmac = Hmac::new(Sha256::new(), l_bin.unsecure());
-
-        debug_assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
-        let p = Pwx {
-            auth: false,
+        Ok(PwxKeyInfo {
+            key_k: key_k,
             iter: itercount,
-            file: file,
-            hmac_block_next: 0,
-            crypto: Box::new(PwxCrypto {
-                key_k: key_k,
-                iv: arr,
-                hmac: hmac,
-            }),
-        };
-
-        Ok(p)
+            iv: arr,
+            key_l: l_bin,
+        })
     }
 
-    /// Returns true if the file HMAC is valid
-    pub fn is_authentic(&mut self) -> bool {
-        if self.auth {
-            return true;
-        }
-        {
-            let fields = match PwxFieldIterator::new(self) {
-                Err(_) => return false,
-                Ok(f) => f,
-            };
+    /// Start HMAC using the L key
+    pub fn hmac(&self) -> Hmac<Sha256> {
+        Hmac::new(Sha256::new(), self.key_l.unsecure())
+    }
+}
 
-            for _ in fields {
+/// This iterator reads blocks from a source and returns them
+/// in cleartext.
+///
+/// It is assumed the provided reader will read the bytes following
+/// the preamble i.e. if this is a file its position must be after
+/// the preamble header.
+///
+/// The iterator stops when it encounters the special EOF block.
+pub struct PwxBlockIter<'a, 'b, R: 'b> {
+    keys: &'a PwxKeyInfo,
+    source: &'b mut R,
+    cbc_block: SecStr,
+}
+
+impl<'a, 'b, R: Read> PwxBlockIter<'a, 'b, R> {
+    pub fn new(keys: &'a PwxKeyInfo, source: &'b mut R) -> PwxBlockIter<'a, 'b, R> {
+        PwxBlockIter {
+            cbc_block: SecStr::from(&keys.iv[..]),
+            source: source,
+            keys: keys,
+        }
+    }
+
+    /// Read and decrypt the next block
+    fn read_next_block(&mut self) -> Result<SecStr, Fail> {
+        let mut block = [0u8; BLOCK_SIZE];
+        self.source.read_exact(&mut block)?;
+
+        if b"PWS3-EOFPWS3-EOF" == &block {
+            return Err(Fail::EOF);
+        }
+
+        // Decrypt block
+        let mut out = SecStr::new(vec![0u8; BLOCK_SIZE]);
+        {
+            let out_r = out.unsecure_mut();
+            self.keys.key_k.decrypt(&block, out_r);
+            for i in 0..BLOCK_SIZE {
+                out_r[i] ^= self.cbc_block.unsecure()[i];
+                self.cbc_block.unsecure_mut()[i] = block[i];
             }
         }
-        return self.auth;
+        Ok(out)
     }
+}
 
-    /// Add block to HMAC, unless this block was already added
-    fn hmac(&mut self, block: u64, data: &[u8]) {
-        if block == self.hmac_block_next {
-            self.crypto.hmac.input(data);
-            self.hmac_block_next += 1;
+impl<'a, 'b, R: Read> Iterator for PwxBlockIter<'a, 'b, R> {
+    type Item = Result<SecStr, Fail>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_next_block() {
+            Err(Fail::EOF) => None,
+            r => Some(r),
+        }
+    }
+}
+
+/// Iterator over all the database fields. See `PwxRecordIter`
+/// for a higher level iterator.
+pub struct PwxFieldIter<'a, 'b, R: 'b> {
+    blockiter: PwxBlockIter<'a, 'b, R>,
+}
+
+impl<'a, 'b, R: Read> PwxFieldIter<'a, 'b, R> {
+
+    /// Creates a new iterator over a Reader
+    pub fn new(keys: &'a PwxKeyInfo, r: &'b mut R) -> PwxFieldIter<'a, 'b, R> {
+        PwxFieldIter{
+            blockiter: PwxBlockIter::new(keys, r),
         }
     }
 
-    pub fn iter(&mut self) -> Result<PwxRecordIterator, Fail> {
-        PwxRecordIterator::new(self)
+    fn read_next_field(&mut self) -> Result<(u8, Value), Fail> {
+        // Read first block
+        let mut firstblock = self.blockiter.read_next_block()?;
+        let firstblock_plain = firstblock.unsecure_mut();
+
+        let fieldtype = firstblock_plain[4];
+        let fieldlen = try!(firstblock_plain.as_ref().read_u32::<LittleEndian>()) as usize;
+        let mut field_memory = SecStr::new(vec![0u8; fieldlen]);
+
+        // Copy first block
+        {
+            let last = min(BLOCK_SIZE-5, fieldlen);
+            let chunk = &firstblock_plain[5..5 + last];
+            field_memory.unsecure_mut()[..chunk.len()].clone_from_slice(chunk);
+        }
+
+        if fieldlen > BLOCK_SIZE - 5 {
+            // Read rest of the field, one block at a time
+            for chunk in field_memory.unsecure_mut()[BLOCK_SIZE-5..]
+                    .chunks_mut(BLOCK_SIZE) {
+                let len = chunk.len();
+                let nextblock = self.blockiter.read_next_block()?;
+                chunk.clone_from_slice(&nextblock.unsecure()[..len]);
+            }
+        }
+        Ok((fieldtype, Value::from(field_memory)))
+    }
+
+    /// Skip all fields in the current record
+    pub fn skip_record(&mut self) -> Result<(), Fail> {
+        for res in self {
+            let (typ, _) = res?;
+            if typ == 0xff {
+                break;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a, 'b, R: Read> Iterator for PwxFieldIter<'a, 'b, R> {
+    type Item = Result<(u8,Value), Fail>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_next_field() {
+            Err(Fail::EOF) => None,
+            r => Some(r),
+        }
+    }
+}
+
+/// Iterate over database records.
+pub struct PwxRecordIter<'a, 'b, R: 'b> {
+    fielditer: PwxFieldIter<'a, 'b, R>,
+}
+
+impl<'a, 'b, R: Read> PwxRecordIter<'a, 'b, R> {
+    pub fn new(keys: &'a PwxKeyInfo, r: &'b mut R) -> Self {
+        PwxRecordIter { fielditer: PwxFieldIter::new(keys, r) }
+    }
+
+    fn read_next_record(&mut self) -> Result<Vec<Field>, Fail> {
+        let mut rec = Vec::new();
+        loop {
+            match self.fielditer.read_next_field()? {
+                // The 0xff field type is the end of a record
+                (0xff, _) => break,
+                (typ, val) => rec.push(db::Field::from(typ, val)),
+            }
+
+        }
+        Ok(rec)
+    }
+}
+
+impl<'a, 'b, R: Read> Iterator for PwxRecordIter<'a, 'b, R> {
+    type Item = Result<Vec<Field>, Fail>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.read_next_record() {
+            Err(Fail::EOF) => None,
+            r => Some(r),
+        }
+    }
+}
+
+pub struct PwxReader {
+    keys: PwxKeyInfo,
+    file: File,
+}
+
+impl PwxReader {
+    /// Open Database and check the given password
+    pub fn open(path: &Path, password: &[u8]) -> Result<PwxReader, Fail> {
+        let mut file = match File::open(path) {
+            Err(why) => return Err(Fail::UnableToOpen(why)),
+            Ok(file) => file,
+        };
+
+        let mut preamble: [u8; PREAMBLE_SIZE] = [0; PREAMBLE_SIZE];
+        file.read_exact(&mut preamble)?;
+        debug_assert!(file.seek(io::SeekFrom::Current(0)).unwrap() as usize == PREAMBLE_SIZE);
+
+        Ok(PwxReader {
+            file: file,
+            keys: PwxKeyInfo::parse_preamble(&preamble, password)?,
+        })
+    }
+
+    /// The password safe DB has an HMAC at the end, generated over
+    /// the field data, this method reads all fields and verifies
+    /// if it matches.
+    pub fn authenticate(&mut self) -> Result<(), Fail> {
+        let mut hmac = self.keys.hmac();
+        {
+            for f in self.fields()? {
+                let (_, fielddata) = f?;
+                let r = fielddata.as_ref();
+                if !r.is_empty() {
+                    hmac.input(r);
+                }
+            }
+        }
+
+        let mut expected = [0u8; SHA256_SIZE];
+        self.file.read_exact(&mut expected)?;
+        let expected_mac = MacResult::new(&expected);
+        if expected_mac != hmac.result() {
+            return Err(Fail::AuthenticationFailed);
+        }
+        return Ok(());
+    }
+
+    pub fn fields(&mut self) -> Result<PwxFieldIter<File>, Fail> {
+        self.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64))?;
+        Ok(PwxFieldIter::new(&self.keys, &mut self.file))
+    }
+
+    pub fn records(&mut self) -> Result<PwxRecordIter<File>, Fail> {
+        self.file.seek(io::SeekFrom::Start(PREAMBLE_SIZE as u64))?;
+        let mut fielditer = PwxFieldIter::new(&self.keys, &mut self.file);
+        fielditer.skip_record()?;
+        Ok(PwxRecordIter { fielditer: fielditer })
     }
 
     /// Returns database header info
@@ -387,8 +409,8 @@ impl Pwx {
             description: String::new(),
         };
 
-        let fields = try!(PwxFieldIterator::new(self));
-        for (typ, val) in fields {
+        for f in self.fields()? {
+            let (typ, val) = f?;
             match typ {
                 0x01 => {
                     info.uuid = Uuid::from_bytes(val.as_ref())
@@ -412,17 +434,3 @@ impl Pwx {
     }
 }
 
-/// PWS3 Database metadata
-pub struct PwxInfo {
-    pub uuid: String,
-    /// Last save time
-    pub mtime: NaiveDateTime,
-    /// Last saved by user
-    pub user: String,
-    /// Last saved on host
-    pub host: String,
-    /// Database name
-    pub dbname: String,
-    /// Database description
-    pub description: String,
-}

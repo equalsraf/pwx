@@ -10,7 +10,6 @@ macro_rules! pwxrun {
         let mut binpath = current_exe().unwrap()
                         .parent().expect("executable path")
                         .to_path_buf();
-        binpath.push("..");
         binpath.push("pwx");
         Command::new(&binpath)
             .env("PWX_PASSWORD", "test")
@@ -125,6 +124,10 @@ fn get() {
     let sout = String::from_utf8_lossy(&output.stdout);
     println!("{}", sout);
     assert_eq!(sout.trim(), "testpassverylong");
+
+    let output = pwxrun!("get", "43fe1d0e-b65f-4e48-9abf-a1c5a1beeee8", "password");
+    let sout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(sout.trim(), "klakdjladklasdfadfla8fd9afaadf8a9f");
 }
 
 #[test]

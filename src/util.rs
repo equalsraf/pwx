@@ -5,7 +5,6 @@ use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use std::ascii::AsciiExt;
-use std::io;
 use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::naive::datetime::NaiveDateTime;
 
@@ -61,26 +60,6 @@ pub fn from_time_t(b: &[u8]) -> Option<NaiveDateTime> {
            .ok()
     } else {
         None
-    }
-}
-
-/// Fill buffer with data from file or fail
-pub fn read_all(r: &mut io::Read, buf: &mut [u8]) -> io::Result<usize> {
-    let mut count = 0;
-
-    while count < buf.len() {
-        let res = r.read(&mut buf[count..]);
-        match res {
-            Ok(0) => break,
-            Ok(done) => count += done,
-            Err(err) => return Err(err),
-        }
-    }
-
-    if count == buf.len() {
-        Ok(count)
-    } else {
-        Err(io::Error::new(io::ErrorKind::Other, "Unexpected end of file"))
     }
 }
 
