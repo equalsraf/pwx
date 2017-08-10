@@ -9,6 +9,7 @@ macro_rules! pwxrun {
     ($($arg:expr),*) => {{
         let mut binpath = current_exe().unwrap()
                         .parent().expect("executable path")
+                        .parent().expect("executable path")
                         .to_path_buf();
         binpath.push("pwx");
         Command::new(&binpath)
