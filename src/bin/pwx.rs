@@ -39,6 +39,7 @@ struct Args {
     flag_username: String,
     flag_title: String,
     flag_long: bool,
+    flag_fmt: String,
     flag_quiet: bool,
     cmd_list: bool,
     cmd_get: bool,
@@ -110,14 +111,17 @@ impl<'a> KeywordFilter<'a> {
     }
 }
 
-fn cmd_list(p: &mut PwxReader, args: &Args) {
+/// Query the database for records that match the given filters
+///
+/// The function f(recid, recdict) is called for each match. If
+/// it returns true, then the query stops.
+fn foreach_record<F>(p: &mut PwxReader, args: &Args, mut f: F)
+        where F: FnMut(Field, HashMap<String, String>) -> bool {
     let min_pw_age = Duration::days(args.flag_password_age as i64);
 
     for record in p.records().unwrap() {
         let record = record.expect("Error while reading database");
-        let mut recid = String::new();
-        let mut title = String::new();
-        let mut username = String::new();
+        let mut recid = None;
 
         // Field filters
         let mut f_username = args.flag_username.is_empty();
@@ -132,22 +136,38 @@ fn cmd_list(p: &mut PwxReader, args: &Args) {
         // Keyword filters
         let mut f_keywords = KeywordFilter::new(&args);
 
+        let mut recdict = HashMap::new();
+        // technically all fields are optional, but we add these two to enable the default
+        // format strings to work
+        recdict.insert("title".to_owned(), String::new());
+        recdict.insert("username".to_owned(), String::new());
+
         for field in record {
-            f_keywords.push(&field);
-            match field {
-                Field::Uuid(ref val) => {
-                    recid = if args.flag_long {
-                        format!("{}", field)
+            if let Some(name) = field.name() {
+                match field {
+                    // The UUID field should respect --long
+                    Field::Uuid(ref val) => if args.flag_long {
+                        recdict.insert(name.to_owned(), format!("{}", field));
                     } else {
-                        val.as_ref().to_base58()
+                        recdict.insert(name.to_owned(), val.as_ref().to_base58());
+                    },
+                    _ => {
+                        recdict.insert(name.to_owned(), format!("{}", field));
                     }
                 }
+            }
+
+            f_keywords.push(&field);
+            match field {
+                Field::Uuid(_) => {
+                    recid = Some(field.clone());
+                }
                 Field::Title(_) => {
-                    title = format!("{}", field);
+                    let title = format!("{}", field);
                     f_title = f_title || fuzzy_eq(&args.flag_title, &title);
                 }
                 Field::Username(_) => {
-                    username = format!("{}", field);
+                    let username = format!("{}", field);
                     f_username = f_username || fuzzy_eq(&args.flag_username, &username);
                 }
                 Field::Url(_) => {
@@ -192,8 +212,31 @@ fn cmd_list(p: &mut PwxReader, args: &Args) {
             continue;
         }
 
-        println!("{} {}[{}]", recid, title, username);
+        if let Some(uuid) = recid {
+            if f(uuid, recdict) {
+                break;
+            }
+        }
     }
+}
+
+fn cmd_list(p: &mut PwxReader, args: &Args) {
+    let fmt = if args.flag_fmt.is_empty() {
+        "{uuid} {title} [{username}]\n"
+    } else {
+        &args.flag_fmt
+    };
+    foreach_record(p, args, |_, recdict| {
+        match fmt.format(&recdict) {
+            Ok(s) => {
+                print!("{}", s);
+            }
+            Err(err) => {
+                let _ = writeln!(stderr(), "Error applying fmt string: {}", err);
+            }
+        }
+        false
+    });
 }
 
 fn cmd_get(p: &mut PwxReader, args: &Args) {
@@ -209,43 +252,36 @@ fn cmd_get(p: &mut PwxReader, args: &Args) {
     };
     let get_uuid = Field::Uuid(Value::from(bin));
 
-    for record in p.records().unwrap() {
-        let record = record.expect("Error while reading database");
-        // Find record by UUID
-        let mut found = false;
-        for field in &record {
-            if *field == get_uuid {
-                found = true;
-                break;
-            }
-        }
-
-        if !found {
-            continue;
-        }
-
-        let mut recdict = HashMap::new();
-        // Get field value
-        for field in &record {
-            if let Some(name) = field.name() {
-                if args.cmd_get && args.arg_fieldname == name {
-                    println!("{}", field);
-                    exit(0);
-                } else if args.cmd_getrec {
-                    recdict.insert(name.to_owned(), format!("{}", field));
+    foreach_record(p, args, |recid, recdict| {
+        if get_uuid == recid {
+            if args.cmd_get {
+                match recdict.get(&args.arg_fieldname) {
+                    Some(f) => {
+                        println!("{}", f);
+                        exit(0);
+                    }
+                    None => {
+                        let _ = writeln!(stderr(), "Record has no field: {}", args.arg_fieldname);
+                        exit(-1);
+                    }
+                }
+            } else {
+                match args.arg_fmt.format(&recdict) {
+                    Ok(s) => {
+                        print!("{}", s);
+                        exit(0);
+                    }
+                    Err(err) => {
+                        let _ = writeln!(stderr(), "Error applying fmt string: {}", err);
+                        exit(-1);
+                    }
                 }
             }
-        }
-
-        if args.cmd_get {
-            let _ = writeln!(stderr(), "Unknown field: {}", args.arg_fieldname);
+            // unreachable
         } else {
-            // getrec
-            print!("{}",
-                   args.arg_fmt.format(&recdict).expect("Error applying format string"));
-            exit(0);
+            false
         }
-    }
+    });
 
     let _ = writeln!(stderr(), "Unknown record: {}", args.arg_recid);
     exit(-1);

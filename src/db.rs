@@ -6,7 +6,7 @@ use super::secstr::SecStr;
 use std::borrow::Borrow;
 use super::chrono::naive::datetime::NaiveDateTime;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Field {
     Uuid(Value),
     Group(Value),
@@ -126,7 +126,7 @@ impl fmt::Display for Field {
 
 /// The value inside a field, a wrapper
 /// around a byte array
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Value {
     data: SecStr,
 }
