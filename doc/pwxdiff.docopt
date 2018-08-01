@@ -1,0 +1,6 @@
+Usage: pwxdiff [options] <file1> <file2>
+       pwxdiff (--help | --version)
+
+Options:
+    -h, --help              Show this help message
+    -v, --version           Show pwx version

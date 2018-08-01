@@ -75,6 +75,7 @@ impl fmt::Display for Fail {
 
 /// PWS3 Database metadata, this is stored in the
 /// header record.
+#[derive(Debug, PartialEq)]
 pub struct PwxInfo {
     pub uuid: String,
     /// Last save time

@@ -28,3 +28,6 @@ gcc = "0.3"
 name = "pwx"
 doc = false
 
+[[bin]]
+name = "pwxdiff"
+doc = false
