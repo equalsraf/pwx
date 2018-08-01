@@ -16,6 +16,7 @@ byteorder = "0.5"
 chrono = "0.2"
 rust-base58 = "0.0.4"
 strfmt = "0.1"
+dirs = "1.0"
 
 [dependencies.gpgagent]
 git = "https://github.com/equalsraf/assuan-rs.git"

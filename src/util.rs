@@ -4,7 +4,6 @@ extern crate byteorder;
 use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use super::SHA256_SIZE;
-use std::ascii::AsciiExt;
 use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::naive::datetime::NaiveDateTime;
 

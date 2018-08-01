@@ -7,6 +7,7 @@ extern crate chrono;
 extern crate rpassword;
 extern crate strfmt;
 extern crate gpgagent;
+extern crate dirs;
 
 use pwx::{PwxReader, Field, Value};
 use std::io::{Write, stderr};
@@ -309,7 +310,7 @@ fn main() {
     } else if !env_db.is_empty() {
         PathBuf::from(&env_db)
     } else {
-        std::env::home_dir()
+        dirs::home_dir()
             .expect("Cannot find your HOME path")
             .join(".pwsafe")
             .join("pwsafe.psafe3")
