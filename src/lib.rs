@@ -121,7 +121,7 @@ impl PwxKeyInfo {
         // 32bit iteration count(ITER)
         let (iter_bin, rest) = rest.split_at(4);
 
-        let itercount = try!(iter_bin.as_ref().read_u32::<LittleEndian>());
+        let itercount = iter_bin.as_ref().read_u32::<LittleEndian>()?;
         if itercount < 2048 {
             return Err(Fail::InvalidIterationCount);
         }
@@ -263,7 +263,7 @@ impl<'a, 'b, R: Read> PwxFieldIter<'a, 'b, R> {
         let firstblock_plain = firstblock.unsecure_mut();
 
         let fieldtype = firstblock_plain[4];
-        let fieldlen = try!(firstblock_plain.as_ref().read_u32::<LittleEndian>()) as usize;
+        let fieldlen = firstblock_plain.as_ref().read_u32::<LittleEndian>()? as usize;
         let mut field_memory = SecStr::new(vec![0u8; fieldlen]);
 
         // Copy first block
