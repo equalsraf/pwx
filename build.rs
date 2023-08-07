@@ -34,11 +34,7 @@ fn build_markdown() {
 }
 
 fn main() {
-    // Build twofish
-    gcc::compile_library("libtwofish.a", &["third-party/twofish.c"]);
-
     // Generate markdown docs
     build_markdown();
-
 }
 

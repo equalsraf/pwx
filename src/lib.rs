@@ -5,6 +5,7 @@ extern crate secstr;
 extern crate byteorder;
 extern crate uuid;
 extern crate chrono;
+extern crate twofish as crypto_twofish;
 
 use std::fs::File;
 use std::path::Path;

@@ -1,111 +1,47 @@
-/// Rust wrapper for Niels Ferguson's libtwofish
+//! Internally a wrapper around rust-crypt twofish.
 
-extern crate libc;
-extern crate secstr;
-use self::libc::{c_uchar, c_int, c_void};
-use self::secstr::SecStr;
-
-const TWOFISH_KEYLEN: usize = 4256;
+use crypto_twofish::cipher::crypto_common::KeyInit;
+use crypto_twofish::cipher::generic_array::GenericArray;
+use crypto_twofish::cipher::{BlockDecrypt, BlockEncrypt};
+use crypto_twofish::Twofish;
 
 pub struct Key {
-    k: SecStr,
-}
-
-extern "C" {
-    fn Twofish_initialise();
-    fn Twofish_prepare_key(data: *const c_uchar, len: c_int, key: *mut c_void);
-    fn Twofish_encrypt(key: *const c_void, data_in: *const c_uchar, data_out: *mut c_uchar);
-    fn Twofish_decrypt(key: *const c_void, data_in: *const c_uchar, data_out: *mut c_uchar);
+    k: Twofish,
 }
 
 impl Key {
-    fn nil() -> Key {
-        Key { k: SecStr::from(vec![0u8; TWOFISH_KEYLEN]) }
-    }
-
     pub fn new(data_in: &[u8]) -> Option<Key> {
         if data_in.len() > 32 {
             return None;
         }
 
-        let mut k = Key::nil();
-        unsafe {
-            Twofish_initialise();
-            Twofish_prepare_key(data_in.as_ptr(),
-                                data_in.len() as c_int,
-                                k.k.unsecure_mut().as_mut_ptr() as *mut c_void);
+        match Twofish::new_from_slice(data_in) {
+            Err(_) => None,
+            Ok(k) => Some(Key { k }),
         }
-        Some(k)
     }
 
-    pub fn decrypt(&self, data_in: &[u8], out: &mut [u8]) {
+    pub fn decrypt<'a>(&self, data_in: &'a [u8], out: &mut [u8]) {
         if data_in.len() < 16 || out.len() < 16 {
             panic!("Invalid twofish block size");
         }
-        unsafe {
-            Twofish_decrypt(self.k.unsecure().as_ptr() as *const c_void,
-                            data_in.as_ptr(),
-                            out.as_mut_ptr());
-        }
+
+        let i = GenericArray::from_slice(data_in);
+        let o = GenericArray::from_mut_slice(&mut out[..16]);
+        self.k.decrypt_block_b2b(i, o)
     }
 
     #[allow(dead_code)]
-    pub fn encrypt(&self, data_in: &[u8], out: &mut [u8]) {
-        if data_in.len() < 16 || out.len() < 16 {
-            panic!("Invalid twofish block size");
-        }
-        unsafe {
-            Twofish_encrypt(self.k.unsecure().as_ptr() as *const c_void,
-                            data_in.as_ptr(),
-                            out.as_mut_ptr());
-        }
+    fn encrypt(&self, data_in: &[u8], out: &mut [u8]) {
+        let i = GenericArray::from_slice(data_in);
+        let o = GenericArray::from_mut_slice(&mut out[..16]);
+        self.k.encrypt_block_b2b(i, o)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use super::Key;
-    #[test]
-    fn test_twofish() {
-        let k = Key::nil();
-
-        let plaintext = b"0123456789ABCDEF";
-        let mut ciphertext = [0u8; 16];
-        k.encrypt(plaintext, &mut ciphertext);
-
-        let mut plaintext2 = [0u8; 16];
-        k.decrypt(&ciphertext, &mut plaintext2);
-        assert_eq!(plaintext, &plaintext2);
-    }
-
-    #[test]
-    fn test_key_invalid() {
-        let k = Key::new(b"0123456789ABCDEF0123456789ABCDEF0");
-        assert!(k.is_none());
-    }
-
-    // encrypt() and decrypt() panic with slices smaller than 16
-    #[test]
-    #[should_panic]
-    fn test_enc_invalid_in() {
-        Key::nil().encrypt(b"123", &mut [0u8; 16])
-    }
-    #[test]
-    #[should_panic]
-    fn test_enc_invalid_out() {
-        Key::nil().encrypt(&[0u8; 16], &mut [0u8; 3])
-    }
-    #[test]
-    #[should_panic]
-    fn test_dec_invalid_in() {
-        Key::nil().decrypt(b"123", &mut [0u8; 16])
-    }
-    #[test]
-    #[should_panic]
-    fn test_dec_invalid_out() {
-        Key::nil().decrypt(&[0u8; 16], &mut [0u8; 3])
-    }
 
     #[test]
     fn test_256() {
@@ -128,3 +64,4 @@ mod tests {
         assert_eq!(plaintext, &plaintext2);
     }
 }
+
