@@ -1,8 +1,8 @@
 
 extern crate byteorder;
 
-use crypto::sha2::Sha256;
-use crypto::digest::Digest;
+use sha2::Sha256;
+use sha2::Digest;
 use super::SHA256_SIZE;
 use byteorder::{LittleEndian, ReadBytesExt};
 use chrono::naive::NaiveDateTime;
@@ -18,17 +18,16 @@ pub fn stretch_pass(salt: &[u8], pass: &[u8], iter: u32) -> Option<[u8; SHA256_S
     }
 
     let mut sha = Sha256::new();
-    sha.input(pass);
-    sha.input(salt);
-    let mut hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
-    sha.result(&mut hash);
+    sha.update(pass);
+    sha.update(salt);
 
+    let mut hash = sha.finalize();
     for _ in 0..iter {
-        sha = Sha256::new();
-        sha.input(&hash);
-        sha.result(&mut hash);
+        let mut sha = Sha256::new();
+        sha.update(&hash);
+        hash = sha.finalize();
     }
-    Some(hash)
+    Some(hash.into())
 }
 
 /// Matching function for filters - this behaves as

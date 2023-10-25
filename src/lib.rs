@@ -1,21 +1,21 @@
 //! PWS3 database
 //!
-extern crate crypto;
 extern crate secstr;
 extern crate byteorder;
 extern crate uuid;
 extern crate chrono;
 extern crate twofish as crypto_twofish;
+extern crate sha2;
+extern crate hmac;
 
 use std::fs::File;
 use std::path::Path;
 use std::io;
 use std::io::{Seek, Read};
 use std::fmt;
-use crypto::sha2::Sha256;
-use crypto::digest::Digest;
-use crypto::hmac::Hmac;
-use crypto::mac::{Mac, MacResult};
+use sha2::Sha256;
+use sha2::Digest;
+use hmac::{Hmac, Mac};
 use std::cmp::min;
 use secstr::SecStr;
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -134,12 +134,11 @@ impl PwxKeyInfo {
             None => return Err(Fail::InvalidSalt),
             Some(k) => k,
         };
-        let mut stretched_hash: [u8; SHA256_SIZE] = [0; SHA256_SIZE];
         let mut sha = Sha256::new();
-        sha.input(&stretched);
-        sha.result(&mut stretched_hash);
+        sha.update(&stretched);
+        let stretched_hash = sha.finalize();
 
-        if stretched_hash != h_pline {
+        if stretched_hash.as_slice() != h_pline {
             return Err(Fail::WrongPassword);
         }
 
@@ -182,7 +181,8 @@ impl PwxKeyInfo {
 
     /// Start HMAC using the L key
     pub fn hmac(&self) -> Hmac<Sha256> {
-        Hmac::new(Sha256::new(), self.key_l.unsecure())
+        Hmac::new_from_slice(self.key_l.unsecure().as_ref())
+            .expect("BUG in hmac init")
     }
 }
 
@@ -374,15 +374,15 @@ impl PwxReader {
                 let (_, fielddata) = f?;
                 let r = fielddata.as_ref();
                 if !r.is_empty() {
-                    hmac.input(r);
+                    hmac.update(r);
                 }
             }
         }
+        let result = hmac.finalize().into_bytes();
 
         let mut expected = [0u8; SHA256_SIZE];
         self.file.read_exact(&mut expected)?;
-        let expected_mac = MacResult::new(&expected);
-        if expected_mac != hmac.result() {
+        if expected != result.as_slice() {
             return Err(Fail::AuthenticationFailed);
         }
         return Ok(());
