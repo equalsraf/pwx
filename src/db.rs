@@ -4,7 +4,7 @@ use super::util;
 use super::uuid::Uuid;
 use super::secstr::SecStr;
 use std::borrow::Borrow;
-use super::chrono::naive::datetime::NaiveDateTime;
+use super::chrono::naive::NaiveDateTime;
 
 #[derive(PartialEq, Clone)]
 pub enum Field {

@@ -19,7 +19,7 @@ use std::cmp::min;
 use secstr::SecStr;
 use byteorder::{LittleEndian, ReadBytesExt};
 use uuid::Uuid;
-use chrono::naive::datetime::NaiveDateTime;
+use chrono::naive::NaiveDateTime;
 
 mod twofish;
 use twofish::Key;

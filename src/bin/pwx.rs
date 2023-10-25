@@ -1,6 +1,6 @@
 extern crate pwx;
 extern crate docopt;
-extern crate rustc_serialize;
+extern crate serde;
 extern crate uuid;
 extern crate rust_base58;
 extern crate chrono;
@@ -20,14 +20,14 @@ use rust_base58::{ToBase58, FromBase58};
 use pwx::util::{fuzzy_eq, from_time_t};
 use std::str::from_utf8;
 use chrono::Local;
-use chrono::duration::Duration;
+use chrono::Duration;
 use std::env::current_dir;
 use strfmt::Format;
 
 // Get pkg version at compile time
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-#[derive(RustcDecodable, Debug)]
+#[derive(serde::Deserialize, Debug)]
 struct Args {
     arg_file: String,
     arg_fieldname: String,
@@ -291,7 +291,7 @@ fn cmd_get(p: &mut PwxReader, args: &Args) {
 fn main() {
     let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                                       "/doc/pwx.docopt")))
-                         .and_then(|d| d.decode())
+                         .and_then(|d| d.deserialize())
                          .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {

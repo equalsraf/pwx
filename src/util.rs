@@ -5,7 +5,7 @@ use crypto::sha2::Sha256;
 use crypto::digest::Digest;
 use super::SHA256_SIZE;
 use byteorder::{LittleEndian, ReadBytesExt};
-use chrono::naive::datetime::NaiveDateTime;
+use chrono::naive::NaiveDateTime;
 
 /// Generate the SHA-256 value of a password after several rounds of
 /// stretching. If the salt is too short, this returns None.
