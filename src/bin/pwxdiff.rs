@@ -3,7 +3,6 @@ extern crate pwx;
 extern crate docopt;
 extern crate rpassword;
 extern crate gpgagent;
-extern crate rustc_serialize;
 extern crate rust_base58;
 
 use rust_base58::ToBase58;
@@ -33,7 +32,7 @@ pub fn abspath(p: &PathBuf) -> Result<PathBuf, std::io::Error> {
 }
 
 
-#[derive(RustcDecodable, Debug)]
+#[derive(serde::Deserialize, Debug)]
 struct Args {
     arg_file1: String,
     arg_file2: String,
@@ -417,7 +416,7 @@ fn find_uuid(fields: &[Field]) -> Option<Value> {
 fn main() {
     let args: Args = Docopt::new(include_str!(concat!(env!("CARGO_MANIFEST_DIR"),
                                                       "/doc/pwxdiff.docopt")))
-                         .and_then(|d| d.decode())
+                         .and_then(|d| d.deserialize())
                          .unwrap_or_else(|e| e.exit());
 
     if args.flag_version {
